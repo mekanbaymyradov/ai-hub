@@ -37,6 +37,12 @@ before it answers.*
 
 *A reply in the app, with the model's thought process collapsed above it.*
 
+## When a reply fails
+
+![Logfire's Live view filtered by one Error ID: the request returned 200, the agent run failed when Mistral answered 401, and the trace ends with "Reply failed"](docs/images/failed-reply.png)
+
+*Searching Logfire for a user's Error ID: Mistral rejected the API key.*
+
 ## Architecture
 
 Everything runs with Docker Compose on one server, and a version tag deploys it.
