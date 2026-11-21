@@ -54,6 +54,9 @@ pydantic-ai's `VercelAIAdapter` (`src/chat/adapter.py`).
   those models don't search. Built-in search is an allowlist of providers
   (`_native_web_search`), because pydantic-ai's own support check can't be
   trusted: it claims built-in search for every Groq model, and they reject it.
+  When Tavily fails, `search_web` raises `ToolFailed`, and the model answers
+  without the results. Before that, 4 of 15 searches failed and took the whole
+  reply down.
 - **Effort:** a message's `effort` (`low`, `medium` or `high`) becomes the
   run's `thinking` setting, which pydantic-ai maps to each provider's own.
   Reasoning is streamed and stored with the chat, but left out of the
@@ -192,6 +195,8 @@ Logfire is the only logging API: code calls `logfire.info()`,
   (`src/jobs.py`). `/healthz` is left out. Signed-in requests carry `user_id` on
   the request span (`get_current_user` in `src/auth/dependencies.py`), so one
   filter finds a user's requests and logs.
+
+  ![The production trace of one chat reply: rate-limit checks in Redis and SQL, then the agent run, where each model call first resolves the prompt from Logfire and the model calls search_web, then get_weather, then writes the answer; then the reply is stored and the title agent names the chat](images/trace.png)
 - **Logs:** attach to the span they are emitted in, so a request's logs share
   its trace ID. A 5xx response or a failed reply returns that ID as `trace_id`,
   for the user to quote (`error_body` in `src/error_handlers.py`). Library
