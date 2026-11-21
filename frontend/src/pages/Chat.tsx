@@ -2,12 +2,14 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChat } from "@ai-sdk/react";
+import { useTranslation } from "react-i18next";
 import { isAxiosError } from "axios";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { chatTransport } from "@/api/chat";
-import { getErrorMessage } from "@/api/errors";
+import { getErrorMessage, getErrorTraceId } from "@/api/errors";
 import { type Effort } from "@/api/types";
+import { useStoredState } from "@/hooks/use-stored-state";
 import {
   prependChatToCache,
   queryKeys,
@@ -36,11 +38,25 @@ import {
 
 export default function Chat() {
   const queryClient = useQueryClient();
+  const { t, i18n } = useTranslation();
 
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  // Saved, so a returning user finds the model and effort they last picked.
+  const [selectedModelId, setSelectedModelId] = useStoredState<string | null>(
+    "ai_hub_model",
+    null,
+    (value): value is string | null => typeof value === "string" || value === null
+  );
   // Kept here rather than in ChatInput so a retry answers with the same effort.
-  const [effort, setEffort] = useState<Effort | null>(null);
+  const [effort, setEffort] = useStoredState<Effort | null>(
+    "ai_hub_effort",
+    null,
+    (value): value is Effort | null => value === null || value === "low" || value === "medium" || value === "high"
+  );
   const { data: models = [] } = useModels();
+  // Read out by screen readers, which can't see the reply start, finish or fail.
+  const [announcement, setAnnouncement] = useState("");
+  // A saved model the API no longer offers falls back to the first, as ChatInput shows it.
+  const activeModelId = models.some((m) => m.id === selectedModelId) ? selectedModelId : (models[0]?.id ?? null);
 
   // The open chat lives in the URL, so a reload or a shared link reopens it.
   const navigate = useNavigate();
@@ -75,10 +91,12 @@ export default function Chat() {
         updateChatNameInCache(queryClient, streamChatIdRef.current, dataPart.data.name);
       }
     },
-    onFinish: () => {
+    onFinish: ({ isAbort, isError }) => {
       if (streamChatIdRef.current !== null) {
         dirtyChatIdRef.current = streamChatIdRef.current;
       }
+      // i18n.t, not t: useChat keeps the callbacks from the first render, and t would keep its language.
+      setAnnouncement(i18n.t(isError ? "chat.replyFailed" : isAbort ? "chat.replyStopped" : "chat.replyReady"));
     },
   });
 
@@ -92,7 +110,7 @@ export default function Chat() {
 
   const currentChatTitle = activeChatId
     ? chatsData?.pages.flatMap((page) => page.items).find((chat) => chat.id === activeChatId)?.name ??
-      "Conversation"
+      t("chat.conversation")
     : undefined;
 
   const messagesQuery = useChatMessages(activeChatId);
@@ -179,11 +197,25 @@ export default function Chat() {
     navigate("/");
   }, [clearError, navigate, queryClient, setMessages, stop]);
 
+  // The shortcut ChatGPT uses, so it's already familiar to many people.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // The physical key, so it works in any layout: in Russian, Ctrl+K types "л".
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "KeyO") {
+        e.preventDefault();
+        handleNewThread();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleNewThread]);
+
   const handleSend = async ({ prompt, attachments, modelId, effort }: OutgoingMessage) => {
     if (isStreaming) return;
 
-    const sendText = prompt || "Attached files";
+    const sendText = prompt || t("chat.attachedFiles");
     clearError();
+    setAnnouncement(t("chat.writingReply"));
     streamChatIdRef.current = activeChatId;
 
     if (activeChatId !== null) {
@@ -224,10 +256,11 @@ export default function Chat() {
     async (targetModelId?: string) => {
       if (isStreaming || activeChatId === null) return;
 
-      const modelToUse = targetModelId || selectedModelId || models[0]?.id;
+      const modelToUse = targetModelId || activeModelId;
       if (!modelToUse) return;
 
       clearError();
+      setAnnouncement(t("chat.writingReply"));
       streamChatIdRef.current = activeChatId;
       touchChatInCache(queryClient, activeChatId);
 
@@ -247,15 +280,16 @@ export default function Chat() {
         metadata: requestMetadata,
       });
     },
-    [isStreaming, activeChatId, selectedModelId, effort, models, clearError, queryClient, regenerate]
+    [isStreaming, activeChatId, activeModelId, selectedModelId, effort, models, clearError, queryClient, regenerate, setSelectedModelId, t]
   );
 
   const lastChatMessage = chatMessages[chatMessages.length - 1];
   const activeTool = isStreaming ? getActiveToolName(lastChatMessage) : null;
   const streamErrorText =
     status === "error" && error
-      ? getErrorMessage(error, "An error occurred during response streaming.")
+      ? getErrorMessage(error, t("chat.streamFailed"))
       : undefined;
+  const streamErrorId = status === "error" && error ? getErrorTraceId(error) : undefined;
 
   const lastPromptHasAttachments = useMemo(() => {
     const lastUserMsg = [...chatMessages].reverse().find((m) => m.role === "user");
@@ -266,7 +300,9 @@ export default function Chat() {
     const rendered = chatMessages.map((msg, idx) => {
       const isLastAssistant =
         idx === chatMessages.length - 1 && msg.role === "assistant";
-      return toRenderableUIMessage(msg, isLastAssistant ? streamErrorText : undefined);
+      return isLastAssistant
+        ? toRenderableUIMessage(msg, streamErrorText, streamErrorId)
+        : toRenderableUIMessage(msg);
     });
 
     const lastMsg = chatMessages[chatMessages.length - 1];
@@ -277,7 +313,7 @@ export default function Chat() {
           id: `${lastMsg.id}-pending`,
           role: "ai",
           content: "",
-          modelId: selectedModelId,
+          modelId: activeModelId,
         });
       } else if (streamErrorText) {
         rendered.push({
@@ -285,15 +321,17 @@ export default function Chat() {
           role: "ai",
           content: "",
           error: streamErrorText,
-          modelId: selectedModelId,
+          errorId: streamErrorId,
+          modelId: activeModelId,
         });
       }
     }
 
     return rendered;
-  }, [chatMessages, isStreaming, streamErrorText, selectedModelId]);
+  }, [chatMessages, isStreaming, streamErrorText, streamErrorId, activeModelId]);
 
   const isInitialState = activeChatId === null && messages.length === 0 && !isStreaming;
+  const lastPrompt = messages.findLast((m) => m.role === "user")?.content;
 
   return (
     <SidebarProvider>
@@ -305,6 +343,7 @@ export default function Chat() {
         />
 
         <main className="flex flex-col flex-1 min-w-0 h-full overflow-hidden relative">
+          <p role="status" className="sr-only">{announcement}</p>
           <ChatHeader chatId={activeChatId} chatTitle={currentChatTitle} onNewThread={handleNewThread} />
 
           {/* A crash in a message leaves the sidebar and input usable. */}
@@ -323,6 +362,8 @@ export default function Chat() {
           </ErrorBoundary>
 
           <ChatInput
+            chatId={activeChatId}
+            lastPrompt={lastPrompt}
             onSend={handleSend}
             onStop={handleStopGeneration}
             isStreaming={isStreaming}
