@@ -24,21 +24,10 @@ Logfire keeps 30 days of data.
 ![Logfire's Live view filtered by that Error ID: the request returned 200, the call to Mistral answered 401 in 98 ms, and the trace ends with "Reply failed"](images/failed-reply-trace.png)
 
 The call to Mistral answered 401: our API key was rejected. The user did
-nothing wrong.
+nothing wrong. The fix is a new key in `/opt/ai-hub/.env`, then
+`docker compose up -d --force-recreate app`.
 
-## 3. Name the cause
-
-The status code decides the fix and what to tell the user.
-
-| Status | Fix | Tell the user |
-|---|---|---|
-| `401` bad API key | Replace the key in `/opt/ai-hub/.env`, then `docker compose up -d --force-recreate app` | "That model is down on our side. Please try another model for now." |
-| `403` not in our plan | Remove it from the catalog in [`src/llm/models.py`](../src/llm/models.py) | "That model is no longer available. Please pick another one." |
-| `404` model renamed or retired | Update or remove it in the catalog | The same as for 403 |
-| `429` rate limit or quota | Usually nothing. If it lasts, check the quota | "That model is busy. Try again in a minute, or pick another one." |
-| `5xx` provider down | Check its status page | "The provider is having problems. Please try another model for now." |
-
-## 4. Confirm the fix
+## 3. Confirm the fix
 
 Send a message with the same model. If its trace has no `Reply failed`, reply
 to the user.
