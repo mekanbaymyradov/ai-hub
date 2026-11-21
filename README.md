@@ -32,8 +32,8 @@ before it answers.*
   opens the trace.
 - Refresh tokens [rotate on every use](src/auth/sessions.py); reusing an old
   one ends the session.
-- Unclaimed uploads are deleted hourly. The [job](src/chat/schedule.py)
-  deletes rows before files, so it never removes a file a message is claiming.
+- An hourly [job](src/chat/schedule.py) deletes unused uploads without racing
+  a message that claims one.
 
 ## In the app
 
