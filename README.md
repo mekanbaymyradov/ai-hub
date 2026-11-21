@@ -17,10 +17,10 @@ before it answers.*
 
 ## Highlights
 
-- Pydantic AI agents [stream replies through FastAPI](docs/architecture.md#streaming),
-  with web search, weather and time tools.
-- Every request is [traced in Logfire](docs/architecture.md#logging-and-observability),
-  without storing what users write.
+- Pydantic AI agents [stream replies through FastAPI](docs/architecture.md#streaming)
+  in the Vercel AI SDK's protocol, with web search, weather and time tools.
+- Every request is [traced in Logfire](docs/architecture.md#logging-and-observability).
+  Production traces leave out users' messages and the model's replies.
 - The prompt lives in Logfire, and [evals](docs/architecture.md#prompt-and-evals)
   score each new version before it ships. The current one raised "answers
   first" from 69% to 90%.
@@ -54,8 +54,8 @@ Everything runs with Docker Compose on one server, and a version tag deploys it.
 
 - **Backend:** FastAPI, Pydantic, SQLAlchemy (async), Alembic, PostgreSQL, Redis
 - **LLM:** Pydantic AI, pydantic_evals, Tavily
-- **Observability:** Logfire (traces, dashboards, alerts, managed prompts,
-  Fleet), OpenTelemetry Collector
+- **Observability:** OpenTelemetry (GenAI semantic conventions), Logfire
+  (traces, dashboards, alerts, managed prompts, Fleet), OpenTelemetry Collector
 - **Infrastructure:** Docker Compose, Caddy, Cloudflare R2, Resend, supercronic, uv
 - **CI/CD:** GitHub Actions for lint, types, tests and a Compose smoke test
 

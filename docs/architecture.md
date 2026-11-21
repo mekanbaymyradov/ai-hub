@@ -87,6 +87,10 @@ back without a deploy, and each new version is measured before it goes live.
   label. The copy in code answers when Logfire can't be reached,
   `LOGFIRE_API_KEY` isn't set, or the label has no version. Each reply's trace
   records the label and version (`Resolve variable prompt__chat`).
+- **Instructions:** each run joins four parts: the guidance from Logfire, the
+  model's name and today's date, the user's name, and their custom
+  instructions (`src/llm/agents.py`). When the user's instructions conflict
+  with the guidance, theirs win.
 - **Evals:** `evals/` asks every model with a key 15 questions in 5 languages
   (`evals/cases.yaml`). Code checks (no filler opener, tagged code fences, word
   limits) and a GPT-OSS 120B judge (answers first, format, language, no closing
@@ -229,6 +233,20 @@ Logfire is the only logging API: code calls `logfire.info()`,
   production, because tools put user input there, like a city name, and Logfire
   never scrubs URLs (`drop_url_query` in `src/observability.py`). Logs and spans
   identify users by ID, never by email.
+
+  Pydantic AI records model and tool calls with the OpenTelemetry GenAI
+  semantic conventions, so any OpenTelemetry backend can read them. In
+  production they keep:
+
+  | Attribute | In production |
+  |---|---|
+  | `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model` | Kept |
+  | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.details.reasoning_tokens` | Kept |
+  | `gen_ai.response.finish_reasons`, `gen_ai.conversation.id`, `gen_ai.agent.name` | Kept |
+  | `gen_ai.tool.name`, `gen_ai.tool.call.id` | Kept |
+  | `gen_ai.input.messages`, `gen_ai.output.messages` | Roles, part types and tool names only, no text |
+  | `gen_ai.system_instructions` | Not recorded |
+  | `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` | Not recorded |
 
   ![Logfire's view of one model call in production: the model, its tools, tokens and timing are recorded, while the question, the tool call and the answer read "Not captured"](images/model-run.png)
 - **Dashboard:** the *AI-Hub* Logfire dashboard puts product numbers (active
