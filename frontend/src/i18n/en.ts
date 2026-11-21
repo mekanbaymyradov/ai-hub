@@ -54,6 +54,7 @@ export const en = {
     deleting: "Deleting…",
     accountMenu: "Account menu",
     profileSettings: "Profile settings",
+    shortcuts: "Keyboard shortcuts",
     lightMode: "Light mode",
     darkMode: "Dark mode",
     themes: { dark: "Dark", light: "Light" },
@@ -79,6 +80,19 @@ export const en = {
     deleteMany_other: "Delete {{count}} chats",
     logOutTitle: "Log out?",
     logOutBody: "Are you sure you want to log out of <b>{{email}}</b>? You will need to sign in again to access your account.",
+  },
+
+  shortcuts: {
+    title: "Keyboard shortcuts",
+    description: "Press Ctrl+/ or ? anytime to see this list.",
+    search: "Search chats",
+    newChat: "New chat",
+    toggleSidebar: "Show or hide the sidebar",
+    send: "Send the message",
+    newLine: "New line",
+    lastPrompt: "Bring back your last prompt (in an empty composer)",
+    stop: "Stop the reply",
+    help: "Show this list",
   },
 
   greeting: {
