@@ -20,9 +20,9 @@ from pydantic_ai.native_tools import WebSearchTool
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.groq import GroqProvider
 
-from src.llm.agents import agent
+from src.llm.agents import agent, chat_prompt
 from src.llm.models import AgentDeps
-from src.llm.tools import Weather, _native_web_search
+from src.llm.tools import SearchResult, Weather, _native_web_search
 
 pytestmark = pytest.mark.anyio
 
@@ -45,6 +45,26 @@ async def test_models_returns_available_models(client: AsyncClient):
             "supports_files": False,
         },
     ]
+
+
+async def test_agent_answers_with_logfire_prompt():
+    instructions: list[str | None] = []
+
+    def reply(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        instructions.append(info.instructions)
+        return ModelResponse(parts=[TextPart("Hi!")])
+
+    deps = AgentDeps(name=None, instructions=None, http=fake_http({}))
+    # Stands in for the version Logfire would return.
+    with (
+        chat_prompt.override("Answer in one haiku."),
+        agent.override(model=FunctionModel(reply)),
+    ):
+        await agent.run("Hello", deps=deps)
+
+    [sent] = instructions
+    assert sent is not None
+    assert sent.startswith("Answer in one haiku.")
 
 
 # Tools
@@ -152,6 +172,50 @@ async def test_get_weather_fails_when_service_is_down():
     part = await call_tool("get_weather", {"city": "Paris"}, http)
 
     # Reported to the model, which can tell the user, instead of failing the reply.
+    assert isinstance(part, ToolReturnPart)
+    assert part.outcome == "failed"
+
+
+async def test_search_web_returns_results():
+    http = fake_http(
+        {
+            "api.tavily.com": httpx2.Response(
+                200,
+                json={
+                    "query": "capital of France",
+                    "results": [
+                        {
+                            "title": "Paris - Wikipedia",
+                            "url": "https://en.wikipedia.org/wiki/Paris",
+                            "content": "Paris is the capital of France.",
+                            "score": 0.98,
+                            "raw_content": None,
+                        }
+                    ],
+                },
+            )
+        }
+    )
+
+    part = await call_tool("search_web", {"query": "capital of France"}, http)
+
+    assert isinstance(part, ToolReturnPart)
+    assert part.content == [
+        SearchResult(
+            title="Paris - Wikipedia",
+            url="https://en.wikipedia.org/wiki/Paris",
+            content="Paris is the capital of France.",
+        )
+    ]
+
+
+async def test_search_web_fails_when_service_is_down():
+    # 432 is Tavily's code for a used-up monthly quota.
+    http = fake_http({"api.tavily.com": httpx2.Response(432)})
+
+    part = await call_tool("search_web", {"query": "capital of France"}, http)
+
+    # Reported to the model, which answers without search, instead of failing the reply.
     assert isinstance(part, ToolReturnPart)
     assert part.outcome == "failed"
 

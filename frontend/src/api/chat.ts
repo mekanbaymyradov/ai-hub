@@ -5,6 +5,8 @@ import {
   type UIMessageChunk,
 } from "ai";
 import { API_BASE_URL } from "@/config";
+// The instance, not the hook: this runs outside React.
+import i18n from "@/i18n";
 import {
   type ChatUIMessage,
   type SendRequestMetadata,
@@ -100,7 +102,7 @@ class AppChatTransport extends DefaultChatTransport<ChatUIMessage> {
             {
               id: lastUserMessage?.id ?? id,
               role: "user",
-              parts: textParts.length > 0 ? textParts : [{ type: "text", text: "Attached files" }],
+              parts: textParts.length > 0 ? textParts : [{ type: "text", text: i18n.t("chat.attachedFiles") }],
             },
           ],
           modelId: meta.modelId,
@@ -130,13 +132,15 @@ class AppChatTransport extends DefaultChatTransport<ChatUIMessage> {
         throw new Error("Cannot regenerate reply without an active chat.");
       }
       try {
-        const created = await chatApi.createChat();
+        // Passed on, so Stop also cancels a chat that is still being created.
+        const created = await chatApi.createChat(options.abortSignal);
         resolvedChatId = created.id;
         if (!options.abortSignal?.aborted) {
           meta.onChatCreated?.(created);
         }
       } catch (error) {
-        throw new Error(getErrorMessage(error, "Failed to start a new chat."), {
+        if (options.abortSignal?.aborted) throw error;
+        throw new Error(getErrorMessage(error, i18n.t("chat.newChatFailed")), {
           cause: error,
         });
       }
@@ -165,8 +169,8 @@ export const chatApi = {
     return response.data;
   },
 
-  createChat: async (): Promise<ChatPublic> => {
-    const response = await apiClient.post<ChatPublic>("/chats");
+  createChat: async (signal?: AbortSignal): Promise<ChatPublic> => {
+    const response = await apiClient.post<ChatPublic>("/chats", undefined, { signal });
     return response.data;
   },
 
