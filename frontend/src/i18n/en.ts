@@ -168,6 +168,18 @@ export const en = {
     },
   },
 
+  preview: {
+    diagram: "Diagram",
+    code: "Code",
+    open: "Preview",
+    title: "Page preview",
+    sandboxNote: "Runs in an isolated frame: it can't see your account or this app.",
+    reload: "Run again",
+    drawing: "Drawing the diagram…",
+    drawFailed: "Couldn't draw this, so the code is shown instead.",
+    svgAlt: "Image from the reply",
+  },
+
   chat: {
     conversation: "Conversation",
     attachedFiles: "Attached files",
