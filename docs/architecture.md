@@ -234,20 +234,6 @@ Logfire is the only logging API: code calls `logfire.info()`,
   never scrubs URLs (`drop_url_query` in `src/observability.py`). Logs and spans
   identify users by ID, never by email.
 
-  Pydantic AI records model and tool calls with the OpenTelemetry GenAI
-  semantic conventions, so any OpenTelemetry backend can read them. In
-  production they keep:
-
-  | Attribute | In production |
-  |---|---|
-  | `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model` | Kept |
-  | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.details.reasoning_tokens` | Kept |
-  | `gen_ai.response.finish_reasons`, `gen_ai.conversation.id`, `gen_ai.agent.name` | Kept |
-  | `gen_ai.tool.name`, `gen_ai.tool.call.id` | Kept |
-  | `gen_ai.input.messages`, `gen_ai.output.messages` | Roles, part types and tool names only, no text |
-  | `gen_ai.system_instructions` | Not recorded |
-  | `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` | Not recorded |
-
   ![Logfire's view of one model call in production: the model, its tools, tokens and timing are recorded, while the question, the tool call and the answer read "Not captured"](images/model-run.png)
 - **Dashboard:** the *AI-Hub* Logfire dashboard puts product numbers (active
   users, LLM cost per user and model, time to first token) next to system
