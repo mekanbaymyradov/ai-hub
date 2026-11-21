@@ -1,99 +1,89 @@
 # Architecture
 
 The code is split by domain under `src/`: `auth`, `chat`, `llm`,
-`notifications` and `voice`. Each domain has its own `router`, `service`,
-`flows`, `models` and `config` modules as it needs them. Shared infrastructure
-lives at the top of `src/`.
+`notifications` and `voice`. Each has its own `router`, `service`, `flows`,
+`models` and `config` modules as it needs them. Shared code sits at the top of
+`src/`.
 
 ## Auth
 
 `src/auth/`. Sign-in is passwordless:
 
-1. `POST /auth/otp/request` emails a 6-digit code. The code lives in Redis
-   for 5 minutes and allows 5 attempts.
-2. `POST /auth/otp/verify` exchanges the code for a 15-minute access JWT and a
-   30-day refresh token of the form `sid.secret`.
+1. `POST /auth/otp/request` emails a 6-digit code. It lives in Redis for 5
+   minutes and allows 5 attempts.
+2. `POST /auth/otp/verify` exchanges it for a 15-minute access JWT and a
+   30-day refresh token.
 
-Sessions are stored in Redis, keyed by `sid`. Only a hash of the refresh token
-is stored.
-Refreshing rotates both tokens. Reusing a refresh token that was already
-rotated revokes the whole session, since that means it was stolen
-(`src/auth/sessions.py`). Avatars go to the public bucket.
+Sessions live in Redis, which stores only a hash of each refresh token. Every
+refresh rotates both tokens. Reusing an old refresh token means it was stolen,
+so the whole session is revoked (`src/auth/sessions.py`).
 
 ## LLM registry
 
-`src/llm/registry.py`. On startup, one Pydantic AI model is built for each
-provider that has an API key, and providers without a key are left out. The
-catalog is served at `GET /llms/models`.
+`src/llm/registry.py`. At startup, a Pydantic AI model is built for each
+provider that has an API key. The catalog is served at `GET /llms/models`.
 
 ## Streaming
 
-A chat is created with `POST /chats`, and `POST /chats/{chat_id}/messages`
-streams the reply in the Vercel AI SDK's UI message stream protocol, through
-pydantic-ai's `VercelAIAdapter` (`src/chat/adapter.py`).
+`POST /chats/{chat_id}/messages` streams the reply in the Vercel AI SDK's
+protocol, through Pydantic AI's `VercelAIAdapter` (`src/chat/adapter.py`).
 
-- **History:** the database is the only record of it. The client sends just
-  the new message; its text is stored before the run, and `ChatAdapter` drops
-  the request's copy so the model sees the stored history alone.
-- **Saving:** the reply is stored in the adapter's `on_complete`, which also
-  titles a chat still named `New chat` and streams the title as a transient
-  `data-chat-name` chunk.
-- **Errors:** `ChatEventStream.on_error` logs the failure and replaces the
-  adapter's raw error text with an `ErrorResponse` body, so provider details
-  never reach the client. The body carries the reply's `trace_id`, which the
-  chat shows as the Error ID.
+- **History:** the database holds the only copy. The client sends just the new
+  message, which is stored before the run.
+- **Saving:** the reply is stored when the run completes. A new chat gets its
+  title then, streamed as a `data-chat-name` chunk.
+- **Reasoning:** a message's `effort` (`low`, `medium` or `high`) becomes the
+  run's `thinking` setting. Reasoning is streamed and stored, but left out of
+  the transcript.
+- **Errors:** `ChatEventStream.on_error` logs the failure and sends an error
+  body without the provider's message. The body carries the reply's
+  `trace_id`, which the chat shows as the Error ID.
 
 ## Agent tools
 
-`src/llm/tools.py`. The chat agent's tools live in one `FunctionToolset`:
-`get_current_time` and `get_weather` (Open-Meteo, no API key).
+`src/llm/tools.py`. The chat agent can tell the time, check the weather
+(Open-Meteo) and search the web.
 
-- **Web search:** the `WebSearch` capability, always on. Claude and Gemini use
-  their provider's built-in search; every other model gets `search_web`, which
-  calls Tavily's API through the shared HTTP client. Without `TAVILY_API_KEY`,
-  those models don't search. Built-in search is an allowlist of providers
-  (`_native_web_search`), because pydantic-ai's own support check can't be
-  trusted: it claims built-in search for every Groq model, and they reject it.
-- **Effort:** a message's `effort` (`low`, `medium` or `high`) becomes the
-  run's `thinking` setting, which pydantic-ai maps to each provider's own.
-  Reasoning is streamed and stored with the chat, but left out of the
-  transcript.
-
-- **Descriptions:** a tool's docstring is what the model reads, so it is
-  written for the model.
+- **Web search:** Claude and Gemini use their provider's built-in search. Other
+  models get `search_web`, which calls Tavily and needs `TAVILY_API_KEY`.
+  Built-in search is an allowlist (`_native_web_search`), because Pydantic AI
+  wrongly reports it for every Groq model.
 - **Errors:** a tool raises `ModelRetry` when the model should fix its
-  arguments, such as an unknown city, and `ToolFailed` when retrying cannot
-  help, such as the weather service being down. Both go back to the model
-  instead of failing the reply.
-- **HTTP:** tools call out through one `httpx2` client opened in the app's
-  lifespan and handed over in the agent's deps, so tests swap in a
-  `MockTransport`.
-- **Streaming:** the adapter runs replies with `run_stream_events()`, so a tool
-  call that follows text still runs. Each call streams as a Vercel tool part
-  with its input and output. Tool calls and results are stored with the chat
-  but left out of its transcript.
+  arguments, like an unknown city, and `ToolFailed` when retrying can't help,
+  like a service being down. Both go back to the model instead of failing the
+  reply. Before this, a failed web search failed the whole reply, and 4 of 15
+  did.
+- **Descriptions:** the model reads a tool's docstring, so it is written for
+  the model.
+- **HTTP:** tools share one `httpx2` client from the app's lifespan, so tests
+  swap in a `MockTransport`.
+- **Streaming:** replies run with `run_stream_events()`, so a tool call that
+  follows text still runs. Tool calls stream to the client and are stored with
+  the chat, but left out of its transcript.
 
 ## Prompt and evals
 
-The chat prompt is the managed prompt `chat` in Logfire, so it changes and rolls
-back without a deploy, and each new version is measured before it goes live.
+The chat prompt is the managed prompt `chat` in Logfire. It changes and rolls
+back without a deploy, and evals score each version before it goes live.
 
-- **Prompt:** `chat_prompt` in `src/llm/agents.py`. The app fetches it at
-  startup (`src/main.py`), since the first fetch can take up to 20 seconds, and
-  Logfire pushes later changes into memory. Replies always use the `production`
-  label. The copy in code answers when Logfire can't be reached,
-  `LOGFIRE_API_KEY` isn't set, or the label has no version. Each reply's trace
-  records the label and version (`Resolve variable prompt__chat`).
+- **Prompt:** the app fetches it at startup, since the first fetch can take up
+  to 20 seconds. Logfire pushes later changes into memory. Replies use the
+  `production` label, and the copy in `src/llm/agents.py` is used when Logfire
+  can't serve one. Each reply's trace records the prompt's label and version.
+- **Instructions:** each run joins four parts: the guidance from Logfire, the
+  model's name and today's date, the user's name, and their custom
+  instructions. When the user's instructions conflict with the guidance,
+  theirs win.
 - **Evals:** `evals/` asks every model with a key 15 questions in 5 languages
-  (`evals/cases.yaml`). Code checks (no filler opener, tagged code fences, word
-  limits) and a GPT-OSS 120B judge (answers first, format, language, no closing
-  filler, correct and complete) score each answer. Each model's run is a Logfire
-  experiment that records the prompt's label and version.
+  (`evals/cases.yaml`). Code checks (filler openers, code fence tags, word
+  limits) and a GPT-OSS 120B judge (answers first, format, language, closing
+  filler, correctness) score each answer. Each model's run is a Logfire
+  experiment that records the prompt version.
 - **Changing the prompt:**
   1. Save a new version of `chat` in Logfire and point `candidate` at it.
   2. Run `uv run python -m evals --name <name> --label candidate`.
-  3. If it beats `production`, move `production` to it. Replies switch as soon
-     as Logfire pushes the change, and moving the label back rolls it back.
+  3. If it beats `production`, move `production` to it. Moving the label back
+     rolls it back.
 
 | Run | Prompt | Answers first | Correct and complete |
 |---|---|---|---|
@@ -101,58 +91,48 @@ back without a deploy, and each new version is measured before it goes live.
 | v1, Nov 11 | First draft of the guidance, never shipped | 37/60 (62%) | 58/60 |
 | prompt-v1, Nov 16 | The guidance now in `production` | 54/60 (90%) | 56/60 |
 
-The guidance costs time: on GPT-OSS 120B, the average answer took 4.4 s instead
-of 2.3 s.
+The guidance costs time: on GPT-OSS 120B, answers took 4.4 s on average
+instead of 2.3 s.
 
 ![Logfire's comparison of baseline and prompt-v1 on GPT-OSS 120B: cases passed 53% to 93%, answers_first 67% to 100%, correct_and_complete 93% to 100%, and average task duration 2.26 s to 4.35 s](images/experiments.png)
 
 ## Attachments
 
-`src/chat/`. Attachments follow a lifecycle:
+`src/chat/`. A message can carry up to 5 images or PDFs of 10 MiB each.
 
-1. **Upload.** Files are uploaded before the message, with
-   `POST /chats/attachments`, into the private bucket. Up to 5 images or PDFs
-   of 10 MiB each.
-2. **Claim.** The returned ids are sent as `attachment_ids` with the message.
-   Each id can be claimed once.
-3. **Read.** Files are read through signed URLs that expire after 15 minutes.
-4. **Clean up.** An hourly scheduler job (`src/chat/schedule.py`) deletes
-   uploads still unclaimed after 24 hours. It deletes rows before files,
-   because deleting a file first could lose one that a message claims at that
-   moment. A failed file delete only leaves a stray file, and the same job
-   removes stray files that have no row.
+1. **Upload:** `POST /chats/attachments` stores the files in the private bucket
+   before the message is sent.
+2. **Claim:** the message sends the returned ids as `attachment_ids`. Each id
+   can be claimed once.
+3. **Read:** files are served through signed URLs that expire after 15
+   minutes.
+4. **Clean up:** an hourly job (`src/chat/schedule.py`) deletes uploads still
+   unclaimed after 24 hours. It deletes rows before files, so it never removes
+   a file a message is claiming. Files left without a row are swept by the same
+   job.
 
 Deleting a chat also deletes its files.
 
 ## Voice
 
-`src/voice/`. `POST /voice/transcriptions` turns one recording into text, in
-the language spoken, for the client to put in the chat input. Nothing is
-stored.
+`src/voice/`. `POST /voice/transcriptions` turns one recording into text for
+the chat input. Nothing is stored.
 
-- **Provider:** Groq's `whisper-large-v3-turbo`, called directly through the
-  shared `httpx2` client (`src/voice/client.py`), since Pydantic AI has no
-  speech-to-text API. The key is `GROQ_API_KEY` from `LLMSettings`, like the
-  other provider keys. Without it the route returns 503.
-- **Input:** WebM, Ogg, MP4, M4A, MP3, WAV or FLAC, up to 10 MiB. Browsers send
-  types with codecs, like `audio/webm;codecs=opus`, so only the part before
-  `;` is checked. The file goes to Groq as `audio.<ext>`, since a recording
-  arrives named `blob`.
-- **Errors:** Groq rejecting the audio (400) becomes a 422, telling the user to
-  record again, and is logged in case the request was at fault. Groq's 429
-  becomes a 503 with its `Retry-After`. Anything else is a 502.
-- **Groq limits:** they apply to the whole organization, not per user, so every
-  user shares one quota (Groq's docs list 20 requests per minute and 2 hours
-  of audio per hour for Whisper). The per-user rate limit keeps one user from
-  taking all of it.
+- **Provider:** Groq's `whisper-large-v3-turbo`, called directly, since
+  Pydantic AI has no speech-to-text API. Without `GROQ_API_KEY` the route
+  returns 503.
+- **Input:** WebM, Ogg, MP4, M4A, MP3, WAV or FLAC, up to 10 MiB.
+- **Errors:** audio Groq rejects becomes a 422, so the user records again.
+  Groq's 429 becomes a 503 with `Retry-After`, and anything else a 502.
+- **Limits:** every user shares Groq's quota, so a per-user rate limit keeps
+  one user from using it up.
 
 ## Rate limiting
 
-`src/rate_limit.py`. The limiter is a fixed-window counter in Redis.
+`src/rate_limit.py`. A fixed-window counter in Redis.
 
-- **App-wide:** every request counts toward an app-wide limit: 100 per minute
-  per user when signed in, 60 per minute per IP otherwise.
-- **Expensive routes:** some routes add their own limit:
+- **App-wide:** 100 requests a minute per signed-in user, 60 per IP otherwise.
+- **Expensive routes** add their own limit:
 
   | Route | Limit |
   |---|---|
@@ -162,74 +142,55 @@ stored.
   | Send a message | 20 per minute per user |
   | Transcribe audio | 10 per minute per user |
 
-- **Response:** a request over the limit gets a 429 with `Retry-After`.
-- **Monitoring:** when the app-wide limit rejects a request, its request span
-  gets `rate_limit.global` set to who hit it (`user:42` or `ip:…`). The Logfire
-  alert *Global rate limit reached* watches it. Per-route limits aren't marked.
-- **Failure:** if Redis is down, the limiter fails open and logs a warning,
-  instead of blocking all traffic.
-- **Exempt:** `/healthz` is not counted.
+- **Response:** a 429 with `Retry-After`.
+- **Monitoring:** a request the app-wide limit rejects gets `rate_limit.global`
+  on its span (`user:42` or `ip:…`). The *Global rate limit reached* alert
+  watches it.
+- **Failure:** if Redis is down, the limiter lets requests through and logs a
+  warning.
 
 ## Pagination
 
-`src/pagination.py`. Lists use cursor pagination:
-
-- **Query:** `?limit=` takes 1–100 (default 20), and `?cursor=` takes the
-  previous page's `next_cursor`.
-- **End of list:** `next_cursor` is `null` on the last page.
-- **Cursor:** opaque, URL-safe base64 JSON. One list's cursor is rejected by
-  another.
+`src/pagination.py`. Lists use cursor pagination. `?limit=` takes 1–100
+(default 20), and `?cursor=` takes the previous page's `next_cursor`, which is
+`null` on the last page. Cursors are opaque, and one list's cursor is rejected
+by another.
 
 ## Logging and observability
 
-Logfire is the only logging API: code calls `logfire.info()`,
-`logfire.exception()` and so on, never `logging` (`src/observability.py`).
+Code logs only through Logfire, like `logfire.info()`, never through `logging`
+(`src/observability.py`).
 
 - **Traces:** each request is one trace, with its SQL, Redis, R2, outgoing HTTP
-  and Pydantic AI calls as child spans. Redis is traced because the rate limiter
-  calls it on every request, so a slow Redis shows up as a span instead of an
-  unexplained gap. Each cron job is one `Job run` trace
-  (`src/jobs.py`). `/healthz` is left out. Signed-in requests carry `user_id` on
-  the request span (`get_current_user` in `src/auth/dependencies.py`), so one
-  filter finds a user's requests and logs.
-- **Logs:** attach to the span they are emitted in, so a request's logs share
-  its trace ID. A 5xx response or a failed reply returns that ID as `trace_id`,
-  for the user to quote (`error_body` in `src/error_handlers.py`). Library
-  warnings and errors from `logging` reach Logfire too.
-- **Naming:** every log and span message is a fixed `"<Subject> <outcome>"`
-  template in sentence case, such as `"Reply failed"`. Values go in as
-  `{placeholders}` or keyword arguments; both become queryable attributes. Never
-  use f-strings: each message would be unique, which breaks grouping and any
-  alert that matches on the template.
-- **Console:** locally, every log and span start prints. In production, docker
-  logs show only warning and error logs (`LOGFIRE_CONSOLE_MIN_LOG_LEVEL` in the
-  compose file), plus the tracebacks uvicorn and failed jobs print themselves.
-  A span that ends in an error never prints; look it up in Logfire.
-- **Containers:** in production, an OpenTelemetry Collector sends each
-  container's CPU, memory and restarts to Logfire
-  ([`deploy/otel-collector.yaml`](../deploy/otel-collector.yaml)). It doesn't
-  run locally.
-- **Fleet:** the app connects to Logfire Fleet (`fleet=True` in
-  `src/observability.py`), so sampling and log levels change from Logfire
-  without a redeploy. The collector reports its health and running config to
-  Fleet, but its config stays in git. The scheduler stays out, since each job
-  exits before a policy can arrive.
+  and Pydantic AI calls as child spans. Each cron job is one `Job run` trace.
+  Signed-in requests carry `user_id`, so one filter finds a user's requests.
+
+  ![The production trace of one chat reply: rate-limit checks in Redis and SQL, then the agent run, where each model call first resolves the prompt from Logfire and the model calls search_web, then get_weather, then writes the answer; then the reply's messages are stored in one INSERT and the title agent names the chat](images/trace.png)
+- **Logs:** a log attaches to its span, so it shares the request's trace ID. A
+  failed reply or a 5xx returns that ID as `trace_id` (`error_body` in
+  `src/error_handlers.py`).
+- **Naming:** every message is a fixed template like `"Reply failed"`, with
+  values as attributes. No f-strings, because unique messages break grouping
+  and alerts.
+- **Console:** production prints only warnings and errors. Failed spans are
+  looked up in Logfire.
+- **Containers:** an OpenTelemetry Collector sends each container's CPU, memory
+  and restarts to Logfire ([`deploy/otel-collector.yaml`](../deploy/otel-collector.yaml)).
+- **Fleet:** the app connects to Logfire Fleet, so sampling and log levels
+  change without a redeploy. The collector reports its health to Fleet, but
+  its config stays in git.
 
   ![Logfire Fleet's SDK view: the ai-hub-production application connected with 3 live instances on the newest SDK, none needing attention, and its span, log and metric volume for the last day](images/fleet.png)
 - **Privacy:** production traces carry no chat text, only model, tokens and
-  timing. Request spans record the client's
-  input locally, but in production only validation errors, without the rejected
-  input (`request_attributes_mapper` in `src/observability.py`), plus the signed-in
-  user's ID. Outgoing HTTP spans keep the URL without its query string in
-  production, because tools put user input there, like a city name, and Logfire
-  never scrubs URLs (`drop_url_query` in `src/observability.py`). Logs and spans
-  identify users by ID, never by email.
+  timing. Request spans keep only validation errors, without the rejected input
+  (`request_attributes_mapper`). Outgoing URLs lose their query string, since
+  tools put user input there, like a city (`drop_url_query`). Users are
+  identified by ID, never by email.
 
   ![Logfire's view of one model call in production: the model, its tools, tokens and timing are recorded, while the question, the tool call and the answer read "Not captured"](images/model-run.png)
 - **Dashboard:** the *AI-Hub* Logfire dashboard puts product numbers (active
   users, LLM cost per user and model, time to first token) next to system
   health (errors, latency per release, containers, the DB pool, sign-ins and
-  cron jobs). Each panel's description says how to read it, and ten alerts
-  watch the same data.
+  cron jobs). Ten alerts watch the same data.
 
   ![The Logfire dashboard for Oct 12–24: 1,749 requests, 10 active users, 116 messages, 30 failed replies and no server errors, with a launch-day spike of 89 messages on Oct 13, a users table with cost per user, the models users pick, requests by status and p95 latency](images/dashboard.png)
