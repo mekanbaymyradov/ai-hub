@@ -75,26 +75,13 @@ back without a deploy, and evals score each version before it goes live.
   instructions. When the user's instructions conflict with the guidance,
   theirs win.
 - **Evals:** `evals/` asks every model with a key 15 questions in 5 languages
-  (`evals/cases.yaml`). Code checks (filler openers, code fence tags, word
-  limits) and a GPT-OSS 120B judge (answers first, format, language, closing
-  filler, correctness) score each answer. Each model's run is a Logfire
-  experiment that records the prompt version.
+  (`evals/cases.yaml`). Code checks and a GPT-OSS 120B judge score each
+  answer, and each model's run is a Logfire experiment.
 - **Changing the prompt:**
   1. Save a new version of `chat` in Logfire and point `candidate` at it.
   2. Run `uv run python -m evals --name <name> --label candidate`.
   3. If it beats `production`, move `production` to it. Moving the label back
      rolls it back.
-
-| Run | Prompt | Answers first | Correct and complete |
-|---|---|---|---|
-| baseline, Nov 10 | The old one-line prompt | 41/59 (69%) | 56/59 |
-| v1, Nov 11 | First draft of the guidance, never shipped | 37/60 (62%) | 58/60 |
-| prompt-v1, Nov 16 | The guidance now in `production` | 54/60 (90%) | 56/60 |
-
-The guidance costs time: on GPT-OSS 120B, answers took 4.4 s on average
-instead of 2.3 s.
-
-![Logfire's comparison of baseline and prompt-v1 on GPT-OSS 120B: cases passed 53% to 93%, answers_first 67% to 100%, correct_and_complete 93% to 100%, and average task duration 2.26 s to 4.35 s](images/experiments.png)
 
 ## Attachments
 
@@ -164,8 +151,6 @@ Code logs only through Logfire, like `logfire.info()`, never through `logging`
 - **Traces:** each request is one trace, with its SQL, Redis, R2, outgoing HTTP
   and Pydantic AI calls as child spans. Each cron job is one `Job run` trace.
   Signed-in requests carry `user_id`, so one filter finds a user's requests.
-
-  ![The production trace of one chat reply: rate-limit checks in Redis and SQL, then the agent run, where each model call first resolves the prompt from Logfire and the model calls search_web, then get_weather, then writes the answer; then the reply's messages are stored in one INSERT and the title agent names the chat](images/trace.png)
 - **Logs:** a log attaches to its span, so it shares the request's trace ID. A
   failed reply or a 5xx returns that ID as `trace_id` (`error_body` in
   `src/error_handlers.py`).
@@ -176,21 +161,16 @@ Code logs only through Logfire, like `logfire.info()`, never through `logging`
   looked up in Logfire.
 - **Containers:** an OpenTelemetry Collector sends each container's CPU, memory
   and restarts to Logfire ([`deploy/otel-collector.yaml`](../deploy/otel-collector.yaml)).
-- **Fleet:** the app connects to Logfire Fleet, so sampling and log levels
-  change without a redeploy. The collector reports its health to Fleet, but
-  its config stays in git.
-
-  ![Logfire Fleet's SDK view: the ai-hub-production application connected with 3 live instances on the newest SDK, none needing attention, and its span, log and metric volume for the last day](images/fleet.png)
+- **Fleet:** sampling and log levels change from Logfire Fleet, without a
+  redeploy.
 - **Privacy:** production traces carry no chat text, only model, tokens and
   timing. Request spans keep only validation errors, without the rejected input
   (`request_attributes_mapper`). Outgoing URLs lose their query string, since
   tools put user input there, like a city (`drop_url_query`). Users are
   identified by ID, never by email.
-
-  ![Logfire's view of one model call in production: the model, its tools, tokens and timing are recorded, while the question, the tool call and the answer read "Not captured"](images/model-run.png)
-- **Dashboard:** the *AI-Hub* Logfire dashboard puts product numbers (active
-  users, LLM cost per user and model, time to first token) next to system
-  health (errors, latency per release, containers, the DB pool, sign-ins and
-  cron jobs). Ten alerts watch the same data.
+- **Dashboard:** one Logfire dashboard shows product numbers (active users,
+  cost per user and model, time to first token) next to system health (errors,
+  latency per release, containers, the database pool). Ten alerts watch the
+  same data.
 
   ![The Logfire dashboard for Oct 12–24: 1,749 requests, 10 active users, 116 messages, 30 failed replies and no server errors, with a launch-day spike of 89 messages on Oct 13, a users table with cost per user, the models users pick, requests by status and p95 latency](images/dashboard.png)

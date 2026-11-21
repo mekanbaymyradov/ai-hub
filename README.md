@@ -19,8 +19,11 @@ before it answers.*
 
 - Pydantic AI agents [stream replies through FastAPI](docs/architecture.md#streaming)
   in the Vercel AI SDK's protocol, with web search, weather and time tools.
-- Every request is [traced in Logfire](docs/architecture.md#logging-and-observability).
-  Production traces leave out users' messages and the model's replies.
+- Every request is a [Logfire trace](docs/architecture.md#logging-and-observability)
+  with the user's ID. The same traces feed one
+  [dashboard](docs/architecture.md#logging-and-observability): active days,
+  model choice and cost per user, next to errors and p95 latency per release.
+  Ten alerts watch it.
 - The chat prompt is managed in Logfire and changes without a deploy.
   [Evals](docs/architecture.md#prompt-and-evals) score each new version before
   it ships. The current one raised "answers first" from 69% to 90%.
@@ -29,8 +32,8 @@ before it answers.*
   opens the trace.
 - Refresh tokens [rotate on every use](src/auth/sessions.py); reusing an old
   one ends the session.
-- One [dashboard](docs/architecture.md#logging-and-observability) and ten
-  alerts cover product and system health.
+- Unclaimed uploads are deleted hourly. The [job](src/chat/schedule.py)
+  deletes rows before files, so it never removes a file a message is claiming.
 
 ## In the app
 
