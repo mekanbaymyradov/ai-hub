@@ -21,9 +21,9 @@ before it answers.*
   in the Vercel AI SDK's protocol, with web search, weather and time tools.
 - Every request is [traced in Logfire](docs/architecture.md#logging-and-observability).
   Production traces leave out users' messages and the model's replies.
-- The prompt lives in Logfire, and [evals](docs/architecture.md#prompt-and-evals)
-  score each new version before it ships. The current one raised "answers
-  first" from 69% to 90%.
+- The chat prompt is managed in Logfire and changes without a deploy.
+  [Evals](docs/architecture.md#prompt-and-evals) score each new version before
+  it ships. The current one raised "answers first" from 69% to 90%.
 - Failed replies and 5xx responses return an
   [Error ID](docs/debugging-a-failed-reply.md). The user can report it, and it
   opens the trace.
