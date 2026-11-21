@@ -200,7 +200,7 @@ Logfire is the only logging API: code calls `logfire.info()`,
   the request span (`get_current_user` in `src/auth/dependencies.py`), so one
   filter finds a user's requests and logs.
 
-  ![The production trace of one chat reply: rate-limit checks in Redis and SQL, then the agent run, where each model call first resolves the prompt from Logfire and the model calls search_web, then get_weather, then writes the answer; then the reply is stored and the title agent names the chat](images/trace.png)
+  ![The production trace of one chat reply: rate-limit checks in Redis and SQL, then the agent run, where each model call first resolves the prompt from Logfire and the model calls search_web, then get_weather, then writes the answer; then the reply's messages are stored in one INSERT and the title agent names the chat](images/trace.png)
 - **Logs:** attach to the span they are emitted in, so a request's logs share
   its trace ID. A 5xx response or a failed reply returns that ID as `trace_id`,
   for the user to quote (`error_body` in `src/error_handlers.py`). Library

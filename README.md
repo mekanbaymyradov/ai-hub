@@ -34,15 +34,17 @@ before it answers.*
 
 ## In the app
 
-![The chat: "Is today a good day for a walk in London? Suggest two museums open today." answered under a collapsed "Thought process", with the current weather and two museums open on Saturday](docs/images/chat-reply.png)
+![The chat: "Is today a good day for a walk in London? Suggest two museums open today." answered by GPT-OSS 120B with the current weather and two museums open on Saturday](docs/images/chat-reply.png)
 
-*A reply in the app, with the model's thought process collapsed above it.*
+*The same reply in the app, by GPT-OSS 120B.*
 
 ## When a reply fails
 
-![Logfire's Live view filtered by one Error ID: the request returned 200, the agent run failed when Mistral answered 401, and the trace ends with "Reply failed"](docs/images/failed-reply.png)
+![The chat: "What time is it in Tokyo right now?" sent to Ministral 8B, answered by a red "The model failed to reply." with Error ID 01a1ffff8ecb4f7f29b93e38509ed534 below it](docs/images/failed-reply.png)
 
-*Searching Logfire for a user's Error ID: Mistral rejected the API key.*
+![Logfire's Live view filtered by the same Error ID: the request returned 200, the call to Mistral answered 401, and the trace ends with "Reply failed"](docs/images/failed-reply-trace.png)
+
+*The Error ID the user sees, found in Logfire: Mistral rejected the API key.*
 
 ## Architecture
 
