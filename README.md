@@ -34,9 +34,9 @@ before it answers.*
 
 ## In the app
 
-![The chat: "Is today a good day for a walk in London? Suggest two museums open today." answered by GPT-OSS 120B with the current weather and two museums open on Saturday](docs/images/chat-reply.png)
+![The chat: "Is today a good day for a walk in London? Suggest two museums open today." answered under a collapsed "Thought process", with the current weather and two museums open on Saturday](docs/images/chat-reply.png)
 
-*The same reply in the app, by GPT-OSS 120B.*
+*A reply in the app, with the model's thought process collapsed above it.*
 
 ## When a reply fails
 
