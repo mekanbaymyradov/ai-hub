@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 5
   redis:
-    image: redis:8.10.2-alpine
+    image: redis:8.10.3-alpine
     restart: unless-stopped
     # AOF persistence, because sign-in sessions live in Redis.
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?}"]
@@ -90,7 +90,7 @@ services:
       timeout: 5s
       retries: 3
   caddy:
-    image: caddy:2.11.8-alpine
+    image: caddy:2.11.9-alpine
     restart: unless-stopped
     # IPv4 only: Docker would proxy IPv6 clients in from the gateway address,
     # putting them all in one rate-limit bucket.
