@@ -25,7 +25,7 @@ RUN npm run build
 
 # Stage: production, the built files served by Caddy behind the edge Caddy in
 # deploy/. Last, so a plain `docker build` makes it.
-FROM caddy:2.11.7-alpine
+FROM caddy:2.11.9-alpine
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 # Caddy keeps state in /data and /config even with its admin API and HTTPS off.
