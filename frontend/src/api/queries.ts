@@ -44,6 +44,10 @@ export function useChatMessages(chatId: number | null) {
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_cursor,
     staleTime: 30_000,
+    // Not refetched in the background: messages streamed in this session have client ids,
+    // so their stored copies would show twice. The chat page refetches a chat once you leave it.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     // A missing chat won't appear on a retry, so the chat page can fall back right away.
     retry: (failureCount, error) =>
       !(isAxiosError(error) && error.response && error.response.status < 500) && failureCount < 3,

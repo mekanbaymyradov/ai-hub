@@ -1,78 +1,68 @@
 # AI-Hub
 
-A live LLM chat backend, run like a production service: every request traced,
-every prompt change scored by evals, and any failed reply
-[found in a minute](docs/debugging-a-failed-reply.md).
-
-[![CI](https://github.com/mekanbaymyradov/AI-Hub/actions/workflows/ci.yml/badge.svg)](https://github.com/mekanbaymyradov/AI-Hub/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/python/required-version-toml?tomlFilePath=https://raw.githubusercontent.com/mekanbaymyradov/AI-Hub/main/pyproject.toml)](pyproject.toml)
-[![License](https://img.shields.io/github/license/mekanbaymyradov/AI-Hub)](LICENSE)
+[![CI](https://github.com/mekanbaymyradov/ai-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/mekanbaymyradov/ai-hub/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/python/required-version-toml?tomlFilePath=https://raw.githubusercontent.com/mekanbaymyradov/ai-hub/main/pyproject.toml)](pyproject.toml)
+[![License](https://img.shields.io/github/license/mekanbaymyradov/ai-hub)](LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+A chat app for LLMs that I built to learn how FastAPI serves AI agents, and
+run like a production service.
 
 **Live:** [ai-hub.techship.fun](https://ai-hub.techship.fun/)
 
-I built it to learn how FastAPI serves AI agents, and held it to the standards
-I'd use at work.
+![One agent run in Logfire: the prompt is resolved from Logfire, the model calls search_web, then get_weather, then writes the answer](docs/images/agent-run.png)
 
-## What's interesting here
+*One reply in production: the agent searches the web and checks the weather
+before it answers.*
 
-- **Product and system health on one dashboard.** Active users, LLM cost per
-  user and model, and time to first token sit next to errors, latency per
-  release and container memory. Ten alerts watch it.
-  ([dashboard](docs/architecture.md#logging-and-observability))
-- **Streamed agent replies.** Pydantic AI streams each reply through FastAPI.
-  History lives only in the database, and provider errors never reach the
-  client. ([code](src/chat/adapter.py), [details](docs/architecture.md#streaming))
-- **Stolen-token detection.** Refresh tokens rotate on every use, and reusing
-  an old one revokes the session.
-  ([code](src/auth/sessions.py), [details](docs/architecture.md#auth))
-- **Evals for every prompt change.** Code checks and an LLM judge score each
-  model's answers, and every run is a Logfire experiment.
-  ([code](evals/), [cases](evals/cases.yaml))
-- **Race-free file cleanup.** The hourly job deletes rows before files, so it
-  never removes a file a message is claiming.
-  ([code](src/chat/schedule.py), [details](docs/architecture.md#attachments))
+## Highlights
 
-## One reply, end to end
+- Pydantic AI agents [stream replies through FastAPI](docs/architecture.md#streaming)
+  in the Vercel AI SDK's protocol, with web search, weather and time tools.
+- Every request is a [Logfire trace](docs/architecture.md#logging-and-observability)
+  with the user's ID. The same traces feed one
+  [dashboard](docs/architecture.md#logging-and-observability): active days,
+  model choice and cost per user, next to errors and p95 latency per release.
+  Ten alerts watch it.
+- The chat prompt is managed in Logfire and changes without a deploy.
+  [Evals](docs/architecture.md#prompt-and-evals) score each new version before
+  it ships. The current one raised "answers first" from 69% to 90%.
+- Failed replies and 5xx responses return an
+  [Error ID](docs/debugging-a-failed-reply.md). The user can report it, and it
+  opens the trace.
+- Refresh tokens [rotate on every use](src/auth/sessions.py); reusing an old
+  one ends the session.
+- An hourly [job](src/chat/schedule.py) deletes unused uploads without racing
+  a message that claims one.
 
-A question that needs a tool:
+## In the app
 
-![The chat: "What should I wear now in Ashgabat?" answered with the current weather and an outfit](docs/images/chat-reply.png)
+![The chat: "Is today a good day for a walk in London? Suggest two museums open today." answered under a collapsed "Thought process", with the current weather and two museums open on Saturday](docs/images/chat-reply.png)
 
-One trace, 1.7 seconds: rate-limit checks, loading the chat, then the agent
-calls `get_weather` and writes the answer.
+*A reply in the app, with the model's thought process collapsed above it.*
 
-![The production trace: rate-limit checks and SQL, then an agent run with two model calls around a get_weather tool call, then the title agent](docs/images/trace.png)
+## When a reply fails
 
-Production keeps the model, tokens and timing. The conversation reads
-"Not captured".
+![The chat: "What time is it in Tokyo right now?" sent to Ministral 8B, answered by a red "The model failed to reply." with Error ID 01a1ffff8ecb4f7f29b93e38509ed534 below it](docs/images/failed-reply.png)
 
-![Logfire's view of the second model call: the model, its tools, tokens and timing are recorded, while the question, the tool call and the answer read "Not captured"](docs/images/model-run.png)
+![Logfire's Live view filtered by the same Error ID: the request returned 200, the call to Mistral answered 401, and the trace ends with "Reply failed"](docs/images/failed-reply-trace.png)
+
+*The Error ID the user sees, found in Logfire: Mistral rejected the API key.*
 
 ## Architecture
 
 Everything runs with Docker Compose on one server, and a version tag deploys it.
 
-![Architecture: the web client reaches the API through Caddy. The API calls the LLM providers and sends telemetry to Logfire, as does the OTel Collector. The API and the hourly scheduler use PostgreSQL, Redis and Cloudflare R2.](docs/images/architecture.svg)
-
-## Features
-
-- Chat with Anthropic, OpenAI, Google, Groq and Mistral models
-- Tools for the time, weather and web search
-- Reasoning effort, reply regeneration, image and PDF attachments, voice input
-- Passwordless sign-in, custom instructions and chat history
+![Architecture: the web client reaches the API through Caddy. The API calls the LLM providers and sends telemetry to Logfire, as does the OTel Collector; Logfire sends the live prompt and Fleet policy back to the API. The API and the hourly scheduler use PostgreSQL, Redis and Cloudflare R2.](docs/images/architecture.svg)
 
 ## Tech stack
 
-- **API:** FastAPI, Pydantic
-- **LLM:** Pydantic AI, pydantic_evals
-- **Data:** PostgreSQL, SQLAlchemy (async), Alembic, Redis
-- **Storage:** Cloudflare R2 (S3 API)
-- **Email:** Resend
-- **Observability:** Logfire, OpenTelemetry Collector
-- **CI/CD:** GitHub Actions for lint, types, tests and a Compose smoke test;
-  version tags deploy
-- **Tooling:** uv, Docker Compose, supercronic
+- **Backend:** FastAPI, Pydantic, SQLAlchemy (async), Alembic, PostgreSQL, Redis
+- **LLM:** Pydantic AI, pydantic_evals, Tavily
+- **Observability:** OpenTelemetry (GenAI semantic conventions), Logfire
+  (traces, dashboards, alerts, managed prompts, Fleet), OpenTelemetry Collector
+- **Infrastructure:** Docker Compose, Caddy, Cloudflare R2, Resend, supercronic, uv
+- **CI/CD:** GitHub Actions for lint, types, tests and a Compose smoke test
 
 ## Getting started
 
@@ -90,30 +80,11 @@ uv run alembic upgrade head
 - API docs: http://localhost:8000/docs
 
 Run the tests with `uv run pytest`, and the evals with
-`uv run python -m evals --name <prompt version>` (needs a Groq key and a
-Logfire token).
+`uv run python -m evals --name <run> --label candidate` (needs Groq and Logfire
+keys, see [docs/development.md](docs/development.md)).
 
 ## Docs
 
 - [Development guide](docs/development.md): setup, migrations, jobs, tests
 - [Architecture](docs/architecture.md): how each part works
 - [Debugging a failed reply](docs/debugging-a-failed-reply.md): from a user's report to the fix
-- [Research notes](docs/RESEARCH.md)
-
-## Next
-
-- Move the system prompt into Logfire, so it changes without a deploy
-- Track token cost per user and model
-- Fall back to another provider when one fails
-- 👍/👎 on replies, turning bad answers into new eval cases
-
-## Credits
-
-I built the backend, infrastructure, evals and tests;
-[yunus770](https://github.com/yunus770) built most of the React web app.
-
-Inspired by:
-
-- [Netflix Dispatch](https://github.com/Netflix/dispatch/tree/main/src/dispatch): one package per domain
-- [FastAPI Best Practices](https://github.com/zhanymkanov/fastapi-best-practices) by [@zhanymkanov](https://github.com/zhanymkanov)
-- [FastAPI Tips](https://github.com/Kludex/fastapi-tips) by [@Kludex](https://github.com/Kludex)

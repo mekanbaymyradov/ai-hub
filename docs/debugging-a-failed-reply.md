@@ -1,20 +1,42 @@
 # Debugging a failed reply
 
-A user writes in: "I sent a message and got an error." This guide finds the
-cause, says what to tell them and what to fix. The example throughout is a real
-failure from 2026-11-03.
+From a user's report to the fix, using a real failure from 2026-11-22.
 
 ## What the user sees
 
-The chat shows "The model failed to reply." in red, under the user's message,
-with a **Retry** button and a **Try another model** menu. That is all the
-client ever gets: the stream carries only the error code
-`llm.model_error`, never the provider's message, so the user can't tell you the
-cause. Logfire can, without ever having stored what they wrote.
+![The chat: "What time is it in Tokyo right now?" sent to Ministral 8B, answered by a red "The model failed to reply." with Error ID 01a1ffff8ecb4f7f29b93e38509ed534 below it](images/failed-reply.png)
 
-## 1. Get the user's ID
+The error hides the provider's message. The Error ID is the request's trace ID.
 
-Logs and traces identify users by ID, never by email. On the server:
+## 1. Open the trace
+
+Ask the user for the Error ID. A screenshot works. In Logfire's Live view,
+filter by it:
+
+```sql
+trace_id = '01a1ffff8ecb4f7f29b93e38509ed534'
+```
+
+Logfire keeps 30 days of data.
+
+## 2. Read the trace
+
+![Logfire's Live view filtered by that Error ID: the request returned 200, the call to Mistral answered 401 in 98 ms, and the trace ends with "Reply failed"](images/failed-reply-trace.png)
+
+The call to Mistral answered 401: our API key was rejected. The user did
+nothing wrong. The fix is a new key in `/opt/ai-hub/.env`, then
+`docker compose up -d --force-recreate app`.
+
+## 3. Confirm the fix
+
+Send a message with the same model. If its trace has no `Reply failed`, reply
+to the user.
+
+<details>
+<summary><b>No Error ID?</b></summary>
+
+The Error ID is gone once the page reloads. Find the user's ID on the server
+instead, since traces never carry emails:
 
 ```bash
 cd /opt/ai-hub
@@ -25,17 +47,12 @@ docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 SELECT id FROM "user" WHERE email = 'user@example.com';
 ```
 
-## 2. Find the failed reply
-
-Don't look for 500s. A reply is streamed, so its request has already returned
-200 by the time the model is called, and a failure travels inside the stream.
-Look for the `Reply failed` log instead. The log doesn't carry the user's ID,
-but the request span in the same trace does, so join the two. In Logfire's
-Explore view, with the user's ID:
+Then list their failed replies in Logfire's Explore view. A streamed reply
+returns 200 before the model fails, so look for `Reply failed`, not a 500:
 
 ```sql
-SELECT req.start_timestamp, req.trace_id, req.span_name AS request,
-       fail.attributes->>'model_id' AS model, fail.exception_message AS cause
+SELECT req.start_timestamp, req.trace_id, fail.attributes->>'model_id' AS model,
+       fail.exception_message AS cause
 FROM records fail
 JOIN records req ON req.trace_id = fail.trace_id AND req.parent_span_id IS NULL
 WHERE fail.deployment_environment = 'production'
@@ -45,65 +62,16 @@ ORDER BY req.start_timestamp DESC
 LIMIT 20
 ```
 
-The example returns two rows:
+Open a row's `trace_id` and continue from step 2.
 
-| Time (UTC) | Request | Model | Cause |
-|---|---|---|---|
-| 16:29:11 | `POST /chats/{chat_id}/messages` | `mistral:ministral-8b-latest` | `status_code: 401 … {"detail":"Invalid API Key"}` |
-| 16:29:14 | `POST /chats/{chat_id}/retry` | `mistral:ministral-8b-latest` | the same |
+</details>
 
-The user pressed retry three seconds later and got the same error, so this is
-not a one-off.
+## Alerts
 
-## 3. Read the trace
+Two Logfire alerts watch `Reply failed`, so most failures show up before a user
+writes in:
 
-Open the trace by its `trace_id`. The retry looks like this:
-
-```text
-POST /chats/{chat_id}/retry → 200               0.18 s   user_id 1
-├─ INCRBY EXPIRE TTL                                     rate-limit checks
-├─ SELECT …                                              user, chat, history
-├─ agent run                                    ✗
-│  └─ chat ministral-8b-latest
-│     └─ POST api.mistral.ai/v1/chat/completions → 401
-└─ Reply failed                                 ✗        Invalid API Key
-```
-
-The red span is the call to Mistral, and Mistral answered 401 in under 0.1
-seconds. A failure that fast is a configuration problem, not load: the
-provider rejected our API key before reading anything. Nothing about the
-user's message was wrong.
-
-## 4. Name the cause
-
-The status code in the cause decides who fixes it and what the user hears.
-
-| Cause | Meaning | Fix | Tell the user |
-|---|---|---|---|
-| `status_code: 401` | The provider rejected our API key. | Replace the key in `/opt/ai-hub/.env`, then `docker compose up -d --force-recreate app`. A plain `restart` keeps the old key. | "That model is down on our side. Use **Try another model** under your message for now; I'll let you know when it's back." |
-| `status_code: 403` | Our plan doesn't include this model. | Remove it from the catalog in [`src/llm/models.py`](../src/llm/models.py), as `7baa627` did for Mistral Large. | "That model is no longer available. Please pick another one." |
-| `status_code: 404` | The provider renamed or retired the model. | Update or remove it in the catalog. | The same as for 403. |
-| `status_code: 429` | The provider's rate limit or quota. Free tiers hit this. | Usually nothing. If it lasts, check the quota. | "That model is busy right now. Try again in a minute, or pick another one." |
-| `status_code: 5xx` | The provider is down. | Check its status page. | "The model's provider is having problems. Please pick another model for now." |
-
-## 5. Confirm the fix
-
-Send a message with the same model on the live site, and check that its trace
-has no `Reply failed`. Then reply to the user.
-
-## Alerts usually get there first
-
-Two Logfire alerts watch `Reply failed`, so most failures reach you before a
-user does:
-
-- **🔴 Chat replies failing** runs every 10 minutes and reports the model and
-  cause for anything we have to fix: 401, 403, 404 and unexpected errors. On
-  2026-11-03 it fired for 16:26–16:36 with
-  `mistral:ministral-8b-latest · 401: bad API key · 2 failed replies`.
-- **🟡 LLM provider limits** reports 429s and 5xx, but only after 5 in an hour,
-  because a one-off limit is normal on a free tier.
-
-## Noise to ignore
-
-Warnings for 404s on paths like `/.env`, `/robots.txt` or `/laravel/.env` are
-bots scanning the API for leaked secrets. They need no action.
+- **🔴 Chat replies failing** runs every 10 minutes and names the model and
+  cause of anything we have to fix: 401, 403, 404 and unexpected errors.
+- **🟡 LLM provider limits** reports 429s and 5xx after 5 in an hour, since a
+  one-off limit is normal on a free tier.
