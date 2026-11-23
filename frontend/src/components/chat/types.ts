@@ -27,14 +27,21 @@ export interface SendRequestMetadata {
   onChatCreated?: (chat: ChatPublic) => void;
 }
 
+/** One step the model took toward its reply: reasoning, or a tool call. */
+export interface ReplyStep {
+  /** The tool's name, or null for reasoning. */
+  tool: string | null;
+  /** The reasoning, or the tool's input, like a city or a search query. */
+  text: string;
+  running: boolean;
+}
+
 export interface UIMessage {
   id: string;
   role: "user" | "ai";
   content: string;
-  /** Streamed reasoning / thinking text from the model, if any. */
-  reasoning?: string;
-  /** Whether the model is currently streaming its reasoning phase. */
-  isReasoningStreaming?: boolean;
+  /** The reply's reasoning and tool calls, in the order they happened. */
+  steps?: ReplyStep[];
   // Why the reply stopped early; shown under whatever content arrived.
   error?: string;
   // The failed request's trace ID, which the user quotes to support.
@@ -57,19 +64,36 @@ export function messagePublicToChatUIMessage(msg: MessagePublic): ChatUIMessage 
   };
 }
 
-/** Extract the currently running tool name from a streaming assistant message, if any. */
-export function getActiveToolName(msg: ChatUIMessage | undefined): string | null {
-  if (!msg || msg.role !== "assistant") return null;
-  for (let i = msg.parts.length - 1; i >= 0; i--) {
-    const part = msg.parts[i];
-    if (
-      isToolUIPart(part) &&
-      (part.state === "input-streaming" || part.state === "input-available")
-    ) {
-      return getToolName(part);
+// The input's text values, like the city or the search query.
+function toolInputText(input: unknown): string {
+  if (!input || typeof input !== "object") return "";
+  return Object.values(input)
+    .flat()
+    .filter((value): value is string => typeof value === "string")
+    .join(", ");
+}
+
+/** Return the reply's reasoning and tool calls, joining reasoning parts that follow each other. */
+export function replySteps(msg: ChatUIMessage): ReplyStep[] {
+  const steps: ReplyStep[] = [];
+  for (const part of msg.parts) {
+    if (isReasoningUIPart(part) && part.text) {
+      const last = steps.at(-1);
+      if (last && last.tool === null) {
+        last.text += `\n\n${part.text}`;
+        last.running = part.state === "streaming";
+      } else {
+        steps.push({ tool: null, text: part.text, running: part.state === "streaming" });
+      }
+    } else if (isToolUIPart(part)) {
+      steps.push({
+        tool: getToolName(part),
+        text: toolInputText(part.input),
+        running: part.state === "input-streaming" || part.state === "input-available",
+      });
     }
   }
-  return null;
+  return steps;
 }
 
 /** Convert a Vercel AI SDK ChatUIMessage into the UI view-model for rendering. */
@@ -88,19 +112,11 @@ export function toRenderableUIMessage(
     }
   }
 
-  const reasoningParts = msg.parts.filter(isReasoningUIPart);
-  const reasoning = reasoningParts
-    .map((p) => p.text)
-    .filter(Boolean)
-    .join("\n\n");
-  const isReasoningStreaming = reasoningParts.some((p) => p.state === "streaming");
-
   return {
     id: msg.id,
     role: msg.role === "assistant" ? "ai" : "user",
     content,
-    reasoning: reasoning || undefined,
-    isReasoningStreaming,
+    steps: replySteps(msg),
     error: errorText,
     errorId,
     attachments: msg.metadata?.attachments,

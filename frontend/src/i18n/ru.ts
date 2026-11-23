@@ -159,11 +159,11 @@ export const ru: Translation = {
     thoughtProcess: "Ход рассуждений",
     jumpToLatest: "К последнему сообщению",
     tools: {
-      get_weather: "Узнаём погоду…",
-      get_current_time: "Узнаём время…",
-      web_search: "Ищем в интернете…",
-      search_web: "Ищем в интернете…",
-      other: "Работает инструмент {{tool}}…",
+      get_weather: { running: "Узнаём погоду…", done: "Узнали погоду" },
+      get_current_time: { running: "Узнаём время…", done: "Узнали время" },
+      web_search: { running: "Ищем в интернете…", done: "Поискали в интернете" },
+      search_web: { running: "Ищем в интернете…", done: "Поискали в интернете" },
+      other: { running: "Работает инструмент {{tool}}…", done: "Сработал инструмент {{tool}}" },
     },
   },
 

@@ -7,10 +7,14 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Clock,
+  CloudSun,
   Copy,
   FileText,
   Loader2,
   RotateCcw,
+  Search,
+  Wrench,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MENU_CONTENT, MENU_ITEM } from "./menu-styles";
-import { type UIMessage } from "./types";
+import { type ReplyStep, type UIMessage } from "./types";
 
 // Its own chunk, since KaTeX, highlight.js and the Markdown parser outweigh the
 // rest of the chat page. Requested as soon as this module loads, so it downloads
@@ -33,13 +37,24 @@ const FormattedMessage = lazy(() =>
   formattedMessageModule.then((m) => ({ default: m.FormattedMessage }))
 );
 
-// Named after the API's tool chunks; the provider's native search and our fallback share a label.
-const TOOL_LABELS = {
-  get_weather: "message.tools.get_weather",
-  get_current_time: "message.tools.get_current_time",
-  web_search: "message.tools.web_search",
-  search_web: "message.tools.search_web",
+// Named after the API's tool chunks; the provider's native search and our fallback share an icon.
+const TOOL_ICONS = {
+  get_weather: CloudSun,
+  get_current_time: Clock,
+  web_search: Search,
+  search_web: Search,
 } as const;
+
+type KnownTool = keyof typeof TOOL_ICONS;
+
+const isKnownTool = (tool: string): tool is KnownTool => Object.hasOwn(TOOL_ICONS, tool);
+
+// Compared by value, since the steps are rebuilt on every streamed chunk.
+const sameSteps = (a: ReplyStep[] = [], b: ReplyStep[] = []) =>
+  a.length === b.length &&
+  a.every(
+    (step, i) => step.tool === b[i].tool && step.text === b[i].text && step.running === b[i].running
+  );
 
 // Its own useCopy, so copying the ID doesn't flip the message's Copy button.
 function ErrorId({ id }: { id: string }) {
@@ -80,8 +95,6 @@ interface ChatMessageItemProps {
   message: UIMessage;
   isStreaming?: boolean;
   isLastMessage?: boolean;
-  /** The tool the model is running for this reply, if any. */
-  activeTool?: string | null;
   models?: ModelPublic[];
   lastPromptHasAttachments?: boolean;
   onRetry?: (targetModelId?: string) => void;
@@ -94,20 +107,30 @@ export const ChatMessageItem = memo(
     message,
     isStreaming = false,
     isLastMessage = false,
-    activeTool = null,
     models,
     lastPromptHasAttachments = false,
     onRetry,
     isFailedPrompt = false,
     failedModelId = null,
   }: ChatMessageItemProps) {
-    const [isReasoningOpen, setIsReasoningOpen] = useState(false);
+    const [isStepsOpen, setIsStepsOpen] = useState(false);
     const [copyState, copy] = useCopy();
     const { t } = useTranslation();
     const isUser = message.role === "user";
-    const isReasoningStreaming = Boolean(
-      !isUser && isStreaming && isLastMessage && message.isReasoningStreaming
-    );
+    const isLive = !isUser && isStreaming && isLastMessage;
+    const steps = message.steps ?? [];
+    const runningStep = isLive ? steps.findLast((step) => step.running) : undefined;
+
+    const toolLabel = (tool: string, state: "running" | "done") =>
+      isKnownTool(tool)
+        ? t(`message.tools.${tool}.${state}`)
+        : t(`message.tools.other.${state}`, { tool });
+
+    const stepsLabel = runningStep?.tool
+      ? toolLabel(runningStep.tool, "running")
+      : runningStep
+        ? t("message.thinking")
+        : t("message.thoughtProcess");
 
     const handleCopy = useCallback(() => {
       if (message.content) void copy(message.content);
@@ -120,14 +143,7 @@ export const ChatMessageItem = memo(
     const targetModelId = isUser ? failedModelId : message.modelId;
     const otherModels = models ? models.filter((m) => m.id !== targetModelId) : [];
 
-    const showStreamingDots =
-      !isUser &&
-      isStreaming &&
-      isLastMessage &&
-      !message.content &&
-      !message.reasoning &&
-      !activeTool &&
-      !message.error;
+    const showStreamingDots = isLive && !message.content && !runningStep && !message.error;
 
     return (
       <motion.div
@@ -270,32 +286,32 @@ export const ChatMessageItem = memo(
               <img src="/favicon.svg" alt="AI-Hub" className="size-4 sm:size-5 object-contain" />
             </span>
             <div className="flex-1 min-w-0 max-w-full overflow-clip mt-1 text-[14px] sm:text-[15px] text-zinc-800 dark:text-zinc-300 leading-relaxed">
-              {message.reasoning && (
+              {steps.length > 0 && (
                 <div className="mb-2.5">
                   <button
                     type="button"
-                    onClick={() => setIsReasoningOpen((open) => !open)}
-                    aria-expanded={isReasoningOpen}
+                    onClick={() => setIsStepsOpen((open) => !open)}
+                    aria-expanded={isStepsOpen}
                     className="inline-flex items-center gap-1.5 py-1 px-2 -ml-2 rounded-lg text-xs font-medium text-fg-7 hover:text-fg-3 hover:bg-fill-2 transition-colors cursor-pointer select-none"
                   >
                     <Brain
                       className={cn(
                         "h-3.5 w-3.5 shrink-0",
-                        isReasoningStreaming
+                        runningStep
                           ? "text-blue-600 dark:text-blue-400 animate-pulse"
                           : "text-fg-8"
                       )}
                     />
-                    <span>{isReasoningStreaming ? t("message.thinking") : t("message.thoughtProcess")}</span>
+                    <span>{stepsLabel}</span>
                     <ChevronRight
                       className={cn(
                         "h-3.5 w-3.5 text-zinc-400 transition-transform duration-200",
-                        isReasoningOpen && "rotate-90"
+                        isStepsOpen && "rotate-90"
                       )}
                     />
                   </button>
                   <AnimatePresence initial={false}>
-                    {isReasoningOpen && (
+                    {isStepsOpen && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -303,8 +319,35 @@ export const ChatMessageItem = memo(
                         transition={{ duration: 0.2, ease: "easeInOut" }}
                         className="overflow-hidden"
                       >
-                        <div className="mt-1 mb-1.5 border-l-2 border-zinc-200 dark:border-zinc-700/80 pl-3.5 py-1 text-[13px] text-fg-6 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                          {message.reasoning}
+                        <div className="flex flex-col gap-2 mt-1 mb-1.5 border-l-2 border-zinc-200 dark:border-zinc-700/80 pl-3.5 py-1 text-[13px] text-fg-6 leading-relaxed break-words [overflow-wrap:anywhere]">
+                          {steps.map((step, i) => {
+                            if (step.tool === null) {
+                              return (
+                                <p key={i} className="whitespace-pre-wrap">
+                                  {step.text}
+                                </p>
+                              );
+                            }
+                            const running = isLive && step.running;
+                            const Icon = running
+                              ? Loader2
+                              : isKnownTool(step.tool)
+                                ? TOOL_ICONS[step.tool]
+                                : Wrench;
+                            return (
+                              <div key={i} className="flex items-start gap-2">
+                                <Icon
+                                  className={cn("h-3.5 w-3.5 shrink-0 mt-[3px] text-fg-8", running && "animate-spin")}
+                                />
+                                <span>
+                                  <span className="font-medium text-fg-5">
+                                    {toolLabel(step.tool, running ? "running" : "done")}
+                                  </span>
+                                  {step.text && <span>: {step.text}</span>}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </motion.div>
                     )}
@@ -357,17 +400,6 @@ export const ChatMessageItem = memo(
 
               {message.error && message.errorId && <ErrorId id={message.errorId} />}
 
-              {activeTool && (
-                <div className="flex items-center gap-2 h-6 px-1 text-sm text-fg-7">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                  <span>
-                    {activeTool in TOOL_LABELS
-                      ? t(TOOL_LABELS[activeTool as keyof typeof TOOL_LABELS])
-                      : t("message.tools.other", { tool: activeTool })}
-                  </span>
-                </div>
-              )}
-
               {!isStreaming && !message.error && message.content && (
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-fg-8">
                   <button
@@ -411,15 +443,13 @@ export const ChatMessageItem = memo(
     return (
       prev.message.id === next.message.id &&
       prev.message.content === next.message.content &&
-      prev.message.reasoning === next.message.reasoning &&
-      prev.message.isReasoningStreaming === next.message.isReasoningStreaming &&
+      sameSteps(prev.message.steps, next.message.steps) &&
       prev.message.error === next.message.error &&
       prev.message.errorId === next.message.errorId &&
       prev.message.attachments === next.message.attachments &&
       prev.message.modelId === next.message.modelId &&
       prev.isStreaming === next.isStreaming &&
       prev.isLastMessage === next.isLastMessage &&
-      prev.activeTool === next.activeTool &&
       prev.models === next.models &&
       prev.lastPromptHasAttachments === next.lastPromptHasAttachments &&
       prev.onRetry === next.onRetry &&

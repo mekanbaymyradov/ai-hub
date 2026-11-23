@@ -28,7 +28,6 @@ import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { ChatInput, type OutgoingMessage } from "@/components/chat/ChatInput";
 import { NamePromptModal } from "@/components/chat/NamePromptModal";
 import {
-  getActiveToolName,
   messagePublicToChatUIMessage,
   toRenderableUIMessage,
   type ChatUIMessage,
@@ -283,8 +282,6 @@ export default function Chat() {
     [isStreaming, activeChatId, activeModelId, selectedModelId, effort, models, clearError, queryClient, regenerate, setSelectedModelId, t]
   );
 
-  const lastChatMessage = chatMessages[chatMessages.length - 1];
-  const activeTool = isStreaming ? getActiveToolName(lastChatMessage) : null;
   const streamErrorText =
     status === "error" && error
       ? getErrorMessage(error, t("chat.streamFailed"))
@@ -353,7 +350,6 @@ export default function Chat() {
               isLoadingHistory={messagesQuery.isLoading}
               activeChatId={activeChatId}
               isStreaming={isStreaming}
-              activeTool={activeTool}
               olderMessages={messagesQuery}
               models={models}
               lastPromptHasAttachments={lastPromptHasAttachments}
