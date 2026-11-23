@@ -159,11 +159,11 @@ export const tk: Translation = {
     thoughtProcess: "Pikirlenme ýoly",
     jumpToLatest: "Soňky habara geç",
     tools: {
-      get_weather: "Howa barlanýar…",
-      get_current_time: "Wagt barlanýar…",
-      web_search: "Internetde gözlenýär…",
-      search_web: "Internetde gözlenýär…",
-      other: "{{tool}} ulanylýar…",
+      get_weather: { running: "Howa barlanýar…", done: "Howa barlandy" },
+      get_current_time: { running: "Wagt barlanýar…", done: "Wagt barlandy" },
+      web_search: { running: "Internetde gözlenýär…", done: "Internetde gözlendi" },
+      search_web: { running: "Internetde gözlenýär…", done: "Internetde gözlendi" },
+      other: { running: "{{tool}} ulanylýar…", done: "{{tool}} ulanyldy" },
     },
   },
 

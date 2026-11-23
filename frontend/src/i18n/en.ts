@@ -161,11 +161,11 @@ export const en = {
     thoughtProcess: "Thought process",
     jumpToLatest: "Jump to latest message",
     tools: {
-      get_weather: "Checking the weather…",
-      get_current_time: "Checking the time…",
-      web_search: "Searching the web…",
-      search_web: "Searching the web…",
-      other: "Using {{tool}}…",
+      get_weather: { running: "Checking the weather…", done: "Checked the weather" },
+      get_current_time: { running: "Checking the time…", done: "Checked the time" },
+      web_search: { running: "Searching the web…", done: "Searched the web" },
+      search_web: { running: "Searching the web…", done: "Searched the web" },
+      other: { running: "Using {{tool}}…", done: "Used {{tool}}" },
     },
   },
 
