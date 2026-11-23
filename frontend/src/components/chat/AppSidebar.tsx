@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Bookmark,
   Check,
   CheckSquare,
   ListChecks,
@@ -59,6 +60,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { MENU_CONTENT, MENU_ITEM, MENU_ITEM_DANGER, MENU_ITEM_SELECTED } from "./menu-styles";
 import { ProfileSettingsModal } from "./ProfileSettingsModal";
 import { RenameChatModal } from "./RenameChatModal";
+import { PromptsDialog } from "./PromptsDialog";
 
 
 
@@ -136,6 +138,7 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
 
   const [isChatMenuOpen, setIsChatMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isPromptsOpen, setIsPromptsOpen] = useState(false);
   const renameDialog = useDialog<ChatPublic>();
   const deleteDialog = useDialog<ChatPublic>();
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
@@ -611,6 +614,11 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
                   <span>{t("sidebar.profileSettings")}</span>
                 </DropdownMenuItem>
 
+                <DropdownMenuItem onClick={() => { if (isMobile) setOpenMobile(false); setIsPromptsOpen(true); }} className={cn(MENU_ITEM, "py-2")}>
+                  <Bookmark className="h-3.5 w-3.5 text-fg-7" />
+                  <span>{t("sidebar.savedPrompts")}</span>
+                </DropdownMenuItem>
+
                 <DropdownMenuItem onClick={toggleTheme} className={cn(MENU_ITEM, "justify-between py-2")}>
                   <div className="flex items-center gap-2">
                     {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
@@ -707,6 +715,7 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
       />
 
       <ProfileSettingsModal open={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      <PromptsDialog open={isPromptsOpen} onClose={() => setIsPromptsOpen(false)} />
     </>
   );
 }
