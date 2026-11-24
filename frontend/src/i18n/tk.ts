@@ -188,6 +188,18 @@ export const tk: Translation = {
     },
   },
 
+  preview: {
+    diagram: "Diagramma",
+    code: "Kod",
+    open: "Görmek",
+    title: "Sahypany görmek",
+    sandboxNote: "Aýratyn penjirede işleýär: hasabyňyza we bu programma elýeterligi ýok.",
+    reload: "Täzeden işlet",
+    drawing: "Diagramma çekilýär…",
+    drawFailed: "Muny çekip bolmady, şonuň üçin kod görkezilýär.",
+    svgAlt: "Jogapdaky surat",
+  },
+
   chat: {
     conversation: "Söhbet",
     attachedFiles: "Goşulan faýllar",

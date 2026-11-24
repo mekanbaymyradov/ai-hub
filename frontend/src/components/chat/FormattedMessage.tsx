@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, useCallback, useContext, useState, type ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -6,13 +6,16 @@ import remarkParse from "remark-parse";
 import { unified } from "unified";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { Check, Copy, X } from "lucide-react";
+import { Check, Copy, Play, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Element, ElementContent } from "hast";
 import type { Nodes, Root } from "mdast";
 import "katex/dist/katex.min.css";
 import { useCopy } from "@/hooks/use-copy";
+import { cn } from "@/lib/utils";
 import { normalizeMath } from "./normalize-math";
+import { HtmlPreview, MermaidDiagram, SvgImage } from "./CodePreview";
+import { previewKind, PreviewsReady } from "./preview-kind";
 
 interface FormattedMessageProps {
   content: string;
@@ -45,10 +48,20 @@ function CodeBlock({ node, children }: { node?: Element; children?: ReactNode })
     ?.find((name) => name.startsWith("language-"))
     ?.slice("language-".length);
 
+  // The parser ends every code block with a newline the model didn't write.
+  const raw = code ? textOf(code).replace(/\n$/, "") : "";
   const handleCopy = () => {
-    // The parser ends every code block with a newline the model didn't write.
-    void copy(code ? textOf(code).replace(/\n$/, "") : "");
+    void copy(raw);
   };
+
+  const ready = useContext(PreviewsReady);
+  const kind = ready ? previewKind(language, raw) : null;
+  const [view, setView] = useState<"visual" | "code">("visual");
+  const [failed, setFailed] = useState(false);
+  const [htmlOpen, setHtmlOpen] = useState(false);
+  const handleFailed = useCallback(() => setFailed(true), []);
+  const canDraw = (kind === "diagram" || kind === "svg") && !failed;
+  const showVisual = canDraw && view === "visual";
 
   return (
     // overflow-clip, not hidden: hidden makes this a scroll container and the
@@ -57,6 +70,35 @@ function CodeBlock({ node, children }: { node?: Element; children?: ReactNode })
       {/* No z-index: one would lift the header above the composer, which overlays the bottom of the list. */}
       <div className="sticky top-0 flex items-center justify-between px-3.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 border-b border-line-2 select-none">
         <span className="font-mono text-xs font-semibold text-fg-2">{language ?? "code"}</span>
+        <div className="flex items-center gap-1.5">
+        {canDraw && (
+          <div role="group" className="flex rounded-md bg-zinc-200/70 p-0.5 dark:bg-white/5">
+            {(["visual", "code"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={view === option}
+                onClick={() => setView(option)}
+                className={cn(
+                  "cursor-pointer rounded px-2 py-0.5 text-[11px] font-medium transition-colors pointer-coarse:py-2",
+                  view === option ? "bg-white text-fg-1 shadow-xs dark:bg-white/15" : "text-fg-6 hover:text-fg-1"
+                )}
+              >
+                {option === "visual" ? t("preview.diagram") : t("preview.code")}
+              </button>
+            ))}
+          </div>
+        )}
+        {kind === "html" && (
+          <button
+            type="button"
+            onClick={() => setHtmlOpen(true)}
+            className="flex cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 pointer-coarse:py-2"
+          >
+            <Play className="h-3 w-3" />
+            {t("preview.open")}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopy}
@@ -72,10 +114,22 @@ function CodeBlock({ node, children }: { node?: Element; children?: ReactNode })
             <Copy className="h-4 w-4" />
           )}
         </button>
+        </div>
       </div>
+      {failed && (kind === "diagram" || kind === "svg") && (
+        <p className="border-b border-line-2 px-3.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">{t("preview.drawFailed")}</p>
+      )}
+      {showVisual && (
+        <div className="bg-white dark:bg-zinc-950">
+          {kind === "diagram" ? <MermaidDiagram code={raw} onError={handleFailed} /> : <SvgImage code={raw} onError={handleFailed} />}
+        </div>
+      )}
+      {kind === "html" && <HtmlPreview code={raw} open={htmlOpen} onOpenChange={setHtmlOpen} />}
+      {!showVisual && (
       <pre className="p-3.5 w-full max-w-full overflow-x-auto text-xs sm:text-[13px] font-mono leading-relaxed text-fg-3 selection:bg-blue-200 dark:selection:bg-blue-600/40">
         {children}
       </pre>
+      )}
     </div>
   );
 }
@@ -181,6 +235,7 @@ export function FormattedMessage({ content, isStreaming }: FormattedMessageProps
   const markdown = normalizeMath(content);
 
   return (
+    <PreviewsReady.Provider value={!isStreaming}>
     <div className="formatted-message w-full min-w-0 max-w-full overflow-clip">
       {/* While a reply streams only its last block changes, so blocks render
           apart and the finished ones are skipped. A done reply renders whole,
@@ -195,5 +250,6 @@ export function FormattedMessage({ content, isStreaming }: FormattedMessageProps
         <span className="inline-block w-1.5 h-3.5 ml-1 align-baseline bg-blue-400/90 rounded-xs animate-pulse" />
       )}
     </div>
+    </PreviewsReady.Provider>
   );
 }
