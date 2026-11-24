@@ -13,7 +13,6 @@ interface ChatMessageListProps {
   isLoadingHistory: boolean;
   activeChatId: number | null;
   isStreaming: boolean;
-  activeTool: string | null;
   olderMessages: PageLoader;
   models?: ModelPublic[];
   lastPromptHasAttachments?: boolean;
@@ -25,7 +24,6 @@ export function ChatMessageList({
   isLoadingHistory,
   activeChatId,
   isStreaming,
-  activeTool,
   olderMessages,
   models,
   lastPromptHasAttachments,
@@ -82,7 +80,7 @@ export function ChatMessageList({
       viewport.scrollTo({ top: viewport.scrollHeight });
     }
     previous.current = { firstId, lastId, lastPromptId, scrollHeight: viewport.scrollHeight };
-  }, [messages, isStreaming, activeTool]);
+  }, [messages, isStreaming]);
 
   const jumpToLatest = () => {
     const viewport = getViewport();
@@ -125,7 +123,6 @@ export function ChatMessageList({
                       message={msg}
                       isStreaming={isStreaming}
                       isLastMessage={isLastMessage}
-                      activeTool={isLastMessage ? activeTool : null}
                       models={models}
                       lastPromptHasAttachments={lastPromptHasAttachments}
                       onRetry={onRetry}

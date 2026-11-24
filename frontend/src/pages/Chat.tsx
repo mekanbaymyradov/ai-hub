@@ -7,7 +7,7 @@ import { isAxiosError } from "axios";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { chatTransport } from "@/api/chat";
-import { getErrorMessage } from "@/api/errors";
+import { getErrorMessage, getErrorTraceId } from "@/api/errors";
 import { type Effort } from "@/api/types";
 import { useStoredState } from "@/hooks/use-stored-state";
 import {
@@ -28,7 +28,6 @@ import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { ChatInput, type OutgoingMessage } from "@/components/chat/ChatInput";
 import { NamePromptModal } from "@/components/chat/NamePromptModal";
 import {
-  getActiveToolName,
   messagePublicToChatUIMessage,
   toRenderableUIMessage,
   type ChatUIMessage,
@@ -283,12 +282,11 @@ export default function Chat() {
     [isStreaming, activeChatId, activeModelId, selectedModelId, effort, models, clearError, queryClient, regenerate, setSelectedModelId, t]
   );
 
-  const lastChatMessage = chatMessages[chatMessages.length - 1];
-  const activeTool = isStreaming ? getActiveToolName(lastChatMessage) : null;
   const streamErrorText =
     status === "error" && error
       ? getErrorMessage(error, t("chat.streamFailed"))
       : undefined;
+  const streamErrorId = status === "error" && error ? getErrorTraceId(error) : undefined;
 
   const lastPromptHasAttachments = useMemo(() => {
     const lastUserMsg = [...chatMessages].reverse().find((m) => m.role === "user");
@@ -299,7 +297,9 @@ export default function Chat() {
     const rendered = chatMessages.map((msg, idx) => {
       const isLastAssistant =
         idx === chatMessages.length - 1 && msg.role === "assistant";
-      return toRenderableUIMessage(msg, isLastAssistant ? streamErrorText : undefined);
+      return isLastAssistant
+        ? toRenderableUIMessage(msg, streamErrorText, streamErrorId)
+        : toRenderableUIMessage(msg);
     });
 
     const lastMsg = chatMessages[chatMessages.length - 1];
@@ -318,13 +318,14 @@ export default function Chat() {
           role: "ai",
           content: "",
           error: streamErrorText,
+          errorId: streamErrorId,
           modelId: activeModelId,
         });
       }
     }
 
     return rendered;
-  }, [chatMessages, isStreaming, streamErrorText, activeModelId]);
+  }, [chatMessages, isStreaming, streamErrorText, streamErrorId, activeModelId]);
 
   const isInitialState = activeChatId === null && messages.length === 0 && !isStreaming;
   const lastPrompt = messages.findLast((m) => m.role === "user")?.content;
@@ -349,7 +350,6 @@ export default function Chat() {
               isLoadingHistory={messagesQuery.isLoading}
               activeChatId={activeChatId}
               isStreaming={isStreaming}
-              activeTool={activeTool}
               olderMessages={messagesQuery}
               models={models}
               lastPromptHasAttachments={lastPromptHasAttachments}

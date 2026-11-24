@@ -2,7 +2,16 @@ from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, func, select, tuple_, update
+from sqlalchemy import (
+    CursorResult,
+    Table,
+    delete,
+    func,
+    insert,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -100,6 +109,13 @@ async def create_message(
     db.add(message)
     await db.flush()
     return message
+
+
+async def create_messages(db: AsyncSession, *, rows: Sequence[dict[str, Any]]) -> None:
+    """Insert the rows in one statement; unlike create_message, nothing is loaded back."""
+    # The table, not the entity: the entity's eager_defaults would fetch each
+    # row's timestamps with RETURNING, one INSERT per row.
+    await db.execute(insert(cast(Table, Message.__table__)), rows)
 
 
 async def create_attachment(

@@ -52,6 +52,7 @@ export const ru: Translation = {
     deleting: "Удаление…",
     accountMenu: "Меню аккаунта",
     profileSettings: "Настройки профиля",
+    savedPrompts: "Сохранённые запросы",
     lightMode: "Светлая тема",
     darkMode: "Тёмная тема",
     themes: { dark: "Тёмная", light: "Светлая" },
@@ -79,6 +80,26 @@ export const ru: Translation = {
     logOutBody: "Вы уверены, что хотите выйти из аккаунта <b>{{email}}</b>? Чтобы вернуться, нужно будет войти снова.",
   },
 
+  prompts: {
+    title: "Сохранённые запросы",
+    description: "Введите / в поле сообщения, чтобы вставить запрос.",
+    manage: "Управлять",
+    menuHint: "↑↓ — выбрать · Enter — вставить · Esc — закрыть",
+    noMatch: "Ничего не найдено. Нажмите Enter, чтобы отправить текст как есть.",
+    empty: "Сохранённых запросов пока нет.",
+    add: "Добавить запрос",
+    edit: "Изменить «{{title}}»",
+    delete: "Удалить «{{title}}»",
+    titlePlaceholder: "Название, например «Ревью кода»",
+    textPlaceholder: "Текст запроса",
+    defaults: {
+      review: { title: "Ревью кода", text: "Проверь этот код на ошибки, граничные случаи и читаемость и предложи конкретные исправления:\n\n" },
+      explain: { title: "Объяснить просто", text: "Объясни это простыми словами, с коротким примером:\n\n" },
+      summarize: { title: "Кратко пересказать", text: "Перескажи главное из этого текста коротким маркированным списком:\n\n" },
+      improve: { title: "Улучшить текст", text: "Сделай этот текст яснее и лучше по стилю, не меняя смысла:\n\n" },
+    },
+  },
+
   greeting: {
     morning: "Доброе утро",
     afternoon: "Добрый день",
@@ -91,7 +112,7 @@ export const ru: Translation = {
   },
 
   composer: {
-    placeholder: "Напишите сообщение…",
+    placeholder: "Напишите сообщение или введите / для сохранённых запросов…",
     send: "Отправить сообщение",
     stop: "Остановить ответ",
     stopHint: "Остановить ответ (Esc)",
@@ -146,6 +167,7 @@ export const ru: Translation = {
     copy: "Копировать",
     copied: "Скопировано",
     copyFailed: "Не удалось скопировать",
+    errorId: "ID ошибки",
     copyMessage: "Копировать сообщение",
     copyResponse: "Копировать ответ",
     copyCode: "Копировать код",
@@ -158,11 +180,11 @@ export const ru: Translation = {
     thoughtProcess: "Ход рассуждений",
     jumpToLatest: "К последнему сообщению",
     tools: {
-      get_weather: "Узнаём погоду…",
-      get_current_time: "Узнаём время…",
-      web_search: "Ищем в интернете…",
-      search_web: "Ищем в интернете…",
-      other: "Работает инструмент {{tool}}…",
+      get_weather: { running: "Узнаём погоду…", done: "Узнали погоду" },
+      get_current_time: { running: "Узнаём время…", done: "Узнали время" },
+      web_search: { running: "Ищем в интернете…", done: "Поискали в интернете" },
+      search_web: { running: "Ищем в интернете…", done: "Поискали в интернете" },
+      other: { running: "Работает инструмент {{tool}}…", done: "Сработал инструмент {{tool}}" },
     },
   },
 
