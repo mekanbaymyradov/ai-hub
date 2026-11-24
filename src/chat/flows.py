@@ -371,13 +371,15 @@ async def create_reply(
         await service.delete_messages_after(
             db, chat_id=chat_id, message_id=replace_after
         )
-    for content in ModelMessagesTypeAdapter.dump_python(messages, mode="json"):
-        await service.create_message(
-            db,
-            chat_id=chat_id,
-            content=content,
-            model_id=model_id if content["kind"] == "response" else None,
-        )
+    rows = [
+        {
+            "chat_id": chat_id,
+            "content": content,
+            "model_id": model_id if content["kind"] == "response" else None,
+        }
+        for content in ModelMessagesTypeAdapter.dump_python(messages, mode="json")
+    ]
+    await service.create_messages(db, rows=rows)
     await db.commit()
 
 

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -26,6 +27,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOnline } from "@/hooks/use-online";
+import { useSavedPrompts } from "@/hooks/use-saved-prompts";
+import { matchPrompts, slashQuery, type SavedPrompt } from "@/lib/saved-prompts";
+import { PromptsDialog } from "./PromptsDialog";
+import { SlashMenu } from "./SlashMenu";
 import { canRecordVoice, useVoiceInput } from "@/hooks/use-voice-input";
 import { ChatGreeting } from "./ChatGreeting";
 import { ModelPicker } from "./ModelPicker";
@@ -228,9 +233,50 @@ export function ChatInput({
     textareaRef.current?.focus();
   };
 
+  // Saved prompts: a "/" starting a one-line composer opens a menu of them.
+  const [savedPrompts] = useSavedPrompts();
+  const [promptsOpen, setPromptsOpen] = useState(false);
+  const [menuIndex, setMenuIndex] = useState(0);
+  // The input the menu was closed on with Escape; any edit clears it, so the menu can open again.
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const menuId = useId();
+  const query = slashQuery(input);
+  const menuOpen = query !== null && dismissedFor !== input && !isDictating;
+  const matches = menuOpen ? matchPrompts(savedPrompts, query) : [];
+  const active = Math.min(menuIndex, Math.max(matches.length - 1, 0));
+
+  const pickPrompt = (prompt: SavedPrompt) => {
+    setInput(prompt.text);
+    // After the new text renders, so the caret lands at its end.
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    });
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // An IME's Enter confirms the composed word, so it must not send.
     if (e.nativeEvent.isComposing) return;
+    if (menuOpen) {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && matches.length > 0) {
+        e.preventDefault();
+        const step = e.key === "ArrowDown" ? 1 : -1;
+        setMenuIndex((active + step + matches.length) % matches.length);
+        return;
+      }
+      // With no match, Enter falls through and sends the text as written.
+      if (((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") && matches.length > 0) {
+        e.preventDefault();
+        pickPrompt(matches[active]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setDismissedFor(input);
+        return;
+      }
+    }
     // Touch keyboards have no Shift, so Enter adds a line there and the button sends.
     if (e.key === "Enter" && !e.shiftKey && !window.matchMedia("(pointer: coarse)").matches) {
       e.preventDefault();
@@ -268,6 +314,18 @@ export function ChatInput({
           transition={{ type: "spring", duration: 0.45, bounce: 0 }}
           className="relative group w-full"
         >
+          {/* Around the form alone, so the menu opens right above the composer. */}
+          <div className="relative">
+          {menuOpen && (
+            <SlashMenu
+              id={menuId}
+              prompts={matches}
+              active={active}
+              onPick={pickPrompt}
+              onHover={setMenuIndex}
+              onManage={() => setPromptsOpen(true)}
+            />
+          )}
           <form
             onSubmit={handleSubmit}
             onDragOver={handleDragOver}
@@ -354,8 +412,17 @@ export function ChatInput({
             <Textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setMenuIndex(0);
+                setDismissedFor(null);
+              }}
               onKeyDown={handleKeyDown}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={menuOpen}
+              aria-controls={menuOpen ? menuId : undefined}
+              aria-activedescendant={menuOpen && matches.length > 0 ? `${menuId}-${active}` : undefined}
               onPaste={handlePaste}
               placeholder={t("composer.placeholder")}
               className="min-h-11 max-h-[200px] sm:max-h-[260px] w-full resize-none overflow-y-auto border-0 rounded-none shadow-none focus-visible:ring-0 px-3.5 sm:px-4 pt-3.5 sm:pt-4 pb-1 text-base sm:text-[15px] bg-transparent dark:bg-transparent text-fg-1 placeholder:text-fg-8"
@@ -499,8 +566,10 @@ export function ChatInput({
               </div>
             )}
           </form>
+          </div>
         </motion.div>
       </div>
+      <PromptsDialog open={promptsOpen} onClose={() => setPromptsOpen(false)} />
     </div>
   );
 }

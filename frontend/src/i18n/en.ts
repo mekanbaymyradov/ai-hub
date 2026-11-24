@@ -55,6 +55,7 @@ export const en = {
     accountMenu: "Account menu",
     profileSettings: "Profile settings",
     shortcuts: "Keyboard shortcuts",
+    savedPrompts: "Saved prompts",
     lightMode: "Light mode",
     darkMode: "Dark mode",
     themes: { dark: "Dark", light: "Light" },
@@ -95,6 +96,26 @@ export const en = {
     help: "Show this list",
   },
 
+  prompts: {
+    title: "Saved prompts",
+    description: "Type / in the message box to insert one.",
+    manage: "Manage",
+    menuHint: "↑↓ to choose · Enter to insert · Esc to close",
+    noMatch: "No saved prompt matches. Press Enter to send your text as it is.",
+    empty: "No saved prompts yet.",
+    add: "Add prompt",
+    edit: "Edit “{{title}}”",
+    delete: "Delete “{{title}}”",
+    titlePlaceholder: "Name, e.g. Code review",
+    textPlaceholder: "The prompt to insert",
+    defaults: {
+      review: { title: "Review code", text: "Review this code for bugs, edge cases and readability, and suggest concrete fixes:\n\n" },
+      explain: { title: "Explain simply", text: "Explain this in simple terms, with a short example:\n\n" },
+      summarize: { title: "Summarize", text: "Summarize the key points of this text as a short bulleted list:\n\n" },
+      improve: { title: "Improve writing", text: "Improve the clarity and style of this text without changing its meaning:\n\n" },
+    },
+  },
+
   greeting: {
     morning: "Good morning",
     afternoon: "Good afternoon",
@@ -107,7 +128,7 @@ export const en = {
   },
 
   composer: {
-    placeholder: "Send a message…",
+    placeholder: "Send a message, or type / for saved prompts…",
     send: "Send message",
     stop: "Stop generation",
     stopHint: "Stop generation (Esc)",
@@ -162,6 +183,7 @@ export const en = {
     copy: "Copy",
     copied: "Copied",
     copyFailed: "Couldn't copy",
+    errorId: "Error ID",
     copyMessage: "Copy message",
     copyResponse: "Copy response",
     copyCode: "Copy code",
@@ -174,11 +196,11 @@ export const en = {
     thoughtProcess: "Thought process",
     jumpToLatest: "Jump to latest message",
     tools: {
-      get_weather: "Checking the weather…",
-      get_current_time: "Checking the time…",
-      web_search: "Searching the web…",
-      search_web: "Searching the web…",
-      other: "Using {{tool}}…",
+      get_weather: { running: "Checking the weather…", done: "Checked the weather" },
+      get_current_time: { running: "Checking the time…", done: "Checked the time" },
+      web_search: { running: "Searching the web…", done: "Searched the web" },
+      search_web: { running: "Searching the web…", done: "Searched the web" },
+      other: { running: "Using {{tool}}…", done: "Used {{tool}}" },
     },
   },
 
