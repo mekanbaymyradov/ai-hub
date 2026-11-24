@@ -52,6 +52,7 @@ export const tk: Translation = {
     deleting: "Pozulýar…",
     accountMenu: "Hasap menýusy",
     profileSettings: "Profil sazlamalary",
+    savedPrompts: "Ýatda saklanan soraglar",
     lightMode: "Ýagty tema",
     darkMode: "Garaňky tema",
     themes: { dark: "Garaňky", light: "Ýagty" },
@@ -79,6 +80,26 @@ export const tk: Translation = {
     logOutBody: "<b>{{email}}</b> hasabyndan çykmak isleýärsiňizmi? Hasabyňyza girmek üçin täzeden girmeli bolarsyňyz.",
   },
 
+  prompts: {
+    title: "Ýatda saklanan soraglar",
+    description: "Birini goýmak üçin habar meýdanynda / ýazyň.",
+    manage: "Dolandyr",
+    menuHint: "↑↓ saýla · Enter goý · Esc ýap",
+    noMatch: "Gabat gelýän sorag ýok. Teksti şol durşy bilen ibermek üçin Enter basyň.",
+    empty: "Entek ýatda saklanan sorag ýok.",
+    add: "Sorag goş",
+    edit: "“{{title}}” üýtget",
+    delete: "“{{title}}” poz",
+    titlePlaceholder: "Ady, meselem: Kod barlagy",
+    textPlaceholder: "Goýuljak sorag",
+    defaults: {
+      review: { title: "Kody barla", text: "Bu kody ýalňyşlyklar, çäk ýagdaýlary we okalyşy boýunça barla we anyk düzedişleri teklip et:\n\n" },
+      explain: { title: "Ýönekeý düşündir", text: "Muny ýönekeý sözler bilen, gysga mysal bilen düşündir:\n\n" },
+      summarize: { title: "Gysgaça beýan et", text: "Bu tekstiň esasy pikirlerini gysga sanaw görnüşinde beýan et:\n\n" },
+      improve: { title: "Teksti gowula", text: "Bu tekstiň manysyny üýtgetmän, ony has düşnükli we owadan et:\n\n" },
+    },
+  },
+
   greeting: {
     morning: "Ertiriňiz haýyrly bolsun",
     afternoon: "Günüňiz haýyrly bolsun",
@@ -91,7 +112,7 @@ export const tk: Translation = {
   },
 
   composer: {
-    placeholder: "Habar ýazyň…",
+    placeholder: "Habar ýazyň ýa-da ýatda saklanan soraglar üçin / giriziň…",
     send: "Habary iber",
     stop: "Jogaby duruz",
     stopHint: "Jogaby duruz (Esc)",
