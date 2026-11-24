@@ -6,6 +6,7 @@ import {
   Bookmark,
   Check,
   CheckSquare,
+  Keyboard,
   ListChecks,
   LogOut,
   MessageSquare,
@@ -60,6 +61,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { MENU_CONTENT, MENU_ITEM, MENU_ITEM_DANGER, MENU_ITEM_SELECTED } from "./menu-styles";
 import { ProfileSettingsModal } from "./ProfileSettingsModal";
 import { RenameChatModal } from "./RenameChatModal";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { PromptsDialog } from "./PromptsDialog";
 
 
@@ -138,6 +140,24 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
 
   const [isChatMenuOpen, setIsChatMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Physical keys, like the other shortcuts; Shift+/ is "?" on English keyboards.
+      const withModifier = (e.metaKey || e.ctrlKey) && e.code === "Slash";
+      const target = e.target as HTMLElement | null;
+      const typing = target?.closest("input, textarea, [contenteditable='true']") !== null;
+      // Without a modifier only outside text fields, so typing a question mark still works.
+      const questionMark = !typing && !e.metaKey && !e.ctrlKey && e.shiftKey && e.code === "Slash";
+      if (withModifier || questionMark) {
+        e.preventDefault();
+        setIsShortcutsOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const [isPromptsOpen, setIsPromptsOpen] = useState(false);
   const renameDialog = useDialog<ChatPublic>();
   const deleteDialog = useDialog<ChatPublic>();
@@ -614,6 +634,11 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
                   <span>{t("sidebar.profileSettings")}</span>
                 </DropdownMenuItem>
 
+                <DropdownMenuItem onClick={() => { if (isMobile) setOpenMobile(false); setIsShortcutsOpen(true); }} className={cn(MENU_ITEM, "py-2")}>
+                  <Keyboard className="h-3.5 w-3.5 text-fg-7" />
+                  <span>{t("sidebar.shortcuts")}</span>
+                </DropdownMenuItem>
+
                 <DropdownMenuItem onClick={() => { if (isMobile) setOpenMobile(false); setIsPromptsOpen(true); }} className={cn(MENU_ITEM, "py-2")}>
                   <Bookmark className="h-3.5 w-3.5 text-fg-7" />
                   <span>{t("sidebar.savedPrompts")}</span>
@@ -715,6 +740,7 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
       />
 
       <ProfileSettingsModal open={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      <ShortcutsDialog open={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
       <PromptsDialog open={isPromptsOpen} onClose={() => setIsPromptsOpen(false)} />
     </>
   );

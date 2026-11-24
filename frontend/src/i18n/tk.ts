@@ -52,6 +52,7 @@ export const tk: Translation = {
     deleting: "Pozulýar…",
     accountMenu: "Hasap menýusy",
     profileSettings: "Profil sazlamalary",
+    shortcuts: "Klawiatura gysga ýollary",
     savedPrompts: "Ýatda saklanan soraglar",
     lightMode: "Ýagty tema",
     darkMode: "Garaňky tema",
@@ -78,6 +79,19 @@ export const tk: Translation = {
     deleteMany_other: "{{count}} söhbeti poz",
     logOutTitle: "Çykmak isleýärsiňizmi?",
     logOutBody: "<b>{{email}}</b> hasabyndan çykmak isleýärsiňizmi? Hasabyňyza girmek üçin täzeden girmeli bolarsyňyz.",
+  },
+
+  shortcuts: {
+    title: "Klawiatura gysga ýollary",
+    description: "Bu sanawy görmek üçin islendik wagt Ctrl+/ ýa-da ? basyň.",
+    search: "Söhbetleri gözle",
+    newChat: "Täze söhbet",
+    toggleSidebar: "Gapdal paneli aç ýa-da ýap",
+    send: "Habary iber",
+    newLine: "Täze setir",
+    lastPrompt: "Soňky soragyňy gaýtar (boş meýdanda)",
+    stop: "Jogaby duruz",
+    help: "Bu sanawy görkez",
   },
 
   prompts: {

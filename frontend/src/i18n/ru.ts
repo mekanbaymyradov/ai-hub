@@ -52,6 +52,7 @@ export const ru: Translation = {
     deleting: "Удаление…",
     accountMenu: "Меню аккаунта",
     profileSettings: "Настройки профиля",
+    shortcuts: "Горячие клавиши",
     savedPrompts: "Сохранённые запросы",
     lightMode: "Светлая тема",
     darkMode: "Тёмная тема",
@@ -78,6 +79,19 @@ export const ru: Translation = {
     deleteMany_other: "Удалить {{count}} чата",
     logOutTitle: "Выйти?",
     logOutBody: "Вы уверены, что хотите выйти из аккаунта <b>{{email}}</b>? Чтобы вернуться, нужно будет войти снова.",
+  },
+
+  shortcuts: {
+    title: "Горячие клавиши",
+    description: "Нажмите Ctrl+/ или ?, чтобы открыть этот список.",
+    search: "Поиск по чатам",
+    newChat: "Новый чат",
+    toggleSidebar: "Показать или скрыть панель",
+    send: "Отправить сообщение",
+    newLine: "Новая строка",
+    lastPrompt: "Вернуть последний запрос (в пустом поле)",
+    stop: "Остановить ответ",
+    help: "Показать этот список",
   },
 
   prompts: {
