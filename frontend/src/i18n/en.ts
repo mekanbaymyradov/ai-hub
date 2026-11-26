@@ -42,6 +42,7 @@ export const en = {
     searchingOlder: "Searching older chats…",
     noMatch: "No chats match “{{query}}”",
     groups: {
+      pinned: "Pinned",
       today: "Today",
       yesterday: "Yesterday",
       previous7: "Previous 7 days",
@@ -49,6 +50,8 @@ export const en = {
       older: "Older",
     },
     chatOptions: "Options for {{name}}",
+    pin: "Pin",
+    unpin: "Unpin",
     rename: "Rename",
     delete: "Delete",
     deleting: "Deleting…",

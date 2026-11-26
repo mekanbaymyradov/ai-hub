@@ -40,6 +40,7 @@ export const tk: Translation = {
     searchingOlder: "Köne söhbetlerden gözlenýär…",
     noMatch: "“{{query}}” boýunça söhbet tapylmady",
     groups: {
+      pinned: "Berkidilenler",
       today: "Şu gün",
       yesterday: "Düýn",
       previous7: "Soňky 7 gün",
@@ -47,6 +48,8 @@ export const tk: Translation = {
       older: "Has öň",
     },
     chatOptions: "“{{name}}” söhbeti üçin amallar",
+    pin: "Berkit",
+    unpin: "Berkitmäni aýyr",
     rename: "Adyny üýtget",
     delete: "Poz",
     deleting: "Pozulýar…",

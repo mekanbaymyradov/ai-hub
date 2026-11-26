@@ -15,6 +15,8 @@ import {
   PanelLeft,
   PanelLeftClose,
   Pencil,
+  Pin,
+  PinOff,
   Search,
   SquarePen,
   Sun,
@@ -31,6 +33,8 @@ import { useAuth } from "@/context/auth";
 import { useTheme } from "@/context/theme";
 import { useDialog } from "@/hooks/use-dialog";
 import { useLoadMore } from "@/hooks/use-load-more";
+import { usePinnedChats } from "@/hooks/use-pinned-chats";
+import { pinnedFirst } from "@/lib/pinned-chats";
 import { displayName } from "@/lib/user";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/Logo";
@@ -114,11 +118,17 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const search = query.trim().toLowerCase();
-  // Only loaded chats are searched; while a search shows few rows, the list's
+  const [pinnedIds, togglePin] = usePinnedChats();
+  // Only loaded chats are searched or pinned: a chat pinned on a page not loaded yet
+  // joins the pinned group once it loads. While a search shows few rows, the list's
   // sentinel stays on screen and older pages keep loading into it.
   const visibleChats = useMemo(
-    () => (search ? chats.filter((chat) => chat.name.toLowerCase().includes(search)) : chats),
-    [chats, search]
+    () =>
+      pinnedFirst(
+        search ? chats.filter((chat) => chat.name.toLowerCase().includes(search)) : chats,
+        pinnedIds
+      ),
+    [chats, search, pinnedIds]
   );
 
   useEffect(() => {
@@ -181,6 +191,8 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
 
   // Fixed for the render, so every row is bucketed against the same moment.
   const now = new Date();
+  const groupOf = (chat: ChatPublic) =>
+    pinnedIds.includes(chat.id) ? "sidebar.groups.pinned" : dateGroup(chat.updated_at, now);
 
   const handleStartSelect = (chatId?: number) => {
     setOpen(true);
@@ -503,9 +515,8 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
                 )}
                 <AnimatePresence initial={false}>
                   {visibleChats.flatMap((chat, index) => {
-                    const group = dateGroup(chat.updated_at, now);
-                    const startsGroup =
-                      index === 0 || dateGroup(visibleChats[index - 1].updated_at, now) !== group;
+                    const group = groupOf(chat);
+                    const startsGroup = index === 0 || groupOf(visibleChats[index - 1]) !== group;
                     const row = (
                       <motion.li
                         key={chat.id}
@@ -537,6 +548,8 @@ export function AppSidebar({ activeChatId, onSelectChat, onNewThread }: AppSideb
                           name={chat.name}
                           active={chat.id === activeChatId}
                           onSelect={() => handleSelectChat(chat.id)}
+                          pinned={pinnedIds.includes(chat.id)}
+                          onTogglePin={() => togglePin(chat.id)}
                           onRename={() => openRename(chat)}
                           onDelete={() => openDelete(chat)}
                           onStartSelect={() => handleStartSelect(chat.id)}
@@ -753,6 +766,8 @@ interface ChatRowContentProps {
   // Without these the row has no menu, as for the not-yet-created new chat.
   onRename?: () => void;
   onDelete?: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
   onStartSelect?: () => void;
   selectionMode?: boolean;
   selected?: boolean;
@@ -765,6 +780,8 @@ function ChatRowContent({
   onSelect,
   onRename,
   onDelete,
+  pinned = false,
+  onTogglePin,
   onStartSelect,
   selectionMode = false,
   selected = false,
@@ -830,7 +847,13 @@ function ChatRowContent({
               <MoreVertical className="h-3.5 w-3.5" />
             </button>
           } />
-          <DropdownMenuContent side="top" align="start" sideOffset={6} className={cn(MENU_CONTENT, "w-32")}>
+          <DropdownMenuContent side="top" align="start" sideOffset={6} className={cn(MENU_CONTENT, "w-max min-w-32")}>
+            {onTogglePin && (
+              <DropdownMenuItem onClick={onTogglePin} className={MENU_ITEM}>
+                {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                <span>{pinned ? t("sidebar.unpin") : t("sidebar.pin")}</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={onRename} className={MENU_ITEM}>
               <Pencil className="h-3.5 w-3.5" />
               <span>{t("sidebar.rename")}</span>

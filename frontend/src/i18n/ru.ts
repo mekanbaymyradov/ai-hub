@@ -40,6 +40,7 @@ export const ru: Translation = {
     searchingOlder: "Ищем в старых чатах…",
     noMatch: "Нет чатов по запросу «{{query}}»",
     groups: {
+      pinned: "Закреплённые",
       today: "Сегодня",
       yesterday: "Вчера",
       previous7: "Последние 7 дней",
@@ -47,6 +48,8 @@ export const ru: Translation = {
       older: "Ранее",
     },
     chatOptions: "Действия с чатом «{{name}}»",
+    pin: "Закрепить",
+    unpin: "Открепить",
     rename: "Переименовать",
     delete: "Удалить",
     deleting: "Удаление…",
